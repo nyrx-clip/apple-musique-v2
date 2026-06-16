@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -399,260 +399,25 @@ body {
 .pp-btn svg { width:22px; height:22px; }
 .pp-btn.big svg { width:28px; height:28px; }
 
-/* ══════════════════════════════════════════════════════════════
-   LIQUID GLASS iOS 26 — MOBILE NAV
-   Replaces original #mobile-nav CSS with authentic glass material
-   ══════════════════════════════════════════════════════════════ */
+/* ── MOBILE NAV ── */
 #mobile-nav {
-  display: none;
-  position: fixed;
-  bottom: 0; left: 0; right: 0; z-index: 90;
-  /* Liquid Glass material — layered transparency + refraction */
-  background: linear-gradient(
-    170deg,
-    rgba(255,255,255,0.13) 0%,
-    rgba(255,255,255,0.055) 40%,
-    rgba(255,255,255,0.03) 100%
-  );
-  backdrop-filter: blur(48px) saturate(200%) brightness(108%);
-  -webkit-backdrop-filter: blur(48px) saturate(200%) brightness(108%);
-  border-top: 0.5px solid rgba(255,255,255,0.2);
-  /* Multi-layer glass shadows */
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.26),
-    inset 0 -1px 0 rgba(0,0,0,0.12),
-    0 -12px 40px rgba(0,0,0,0.38),
-    0 -4px 12px rgba(0,0,0,0.22);
-  padding: 6px 8px calc(var(--safe-b) + 2px);
-  flex-direction: row;
-  justify-content: space-around;
-  align-items: center;
-  overflow: hidden;
-  /* Smooth show transition */
-  transition: transform 0.3s var(--slide);
+  display:none; position:fixed;
+  bottom:0; left:0; right:0; z-index:90;
+  background:rgba(10,10,10,0.92);
+  backdrop-filter:blur(50px) saturate(180%);
+  -webkit-backdrop-filter:blur(50px) saturate(180%);
+  border-top:0.5px solid var(--glass-border);
+  padding:6px 0 calc(var(--safe-b) + 2px);
+  flex-direction:row; justify-content:space-around;
 }
-
-/* Top specular shine — key light hitting the glass edge */
-#mobile-nav::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 6%; right: 6%;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255,255,255,0.4) 20%,
-    rgba(255,255,255,0.88) 50%,
-    rgba(255,255,255,0.4) 80%,
-    transparent 100%
-  );
-  filter: blur(0.3px);
-  pointer-events: none;
-  z-index: 10;
-}
-
-/* Inner glass reflection gradient */
-#mobile-nav::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(255,255,255,0.08) 0%,
-    rgba(255,255,255,0.02) 35%,
-    transparent 100%
-  );
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* ── LIQUID BUBBLE — the morphing active indicator ── */
-#lg-nav-bubble {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 46px;
-  border-radius: 15px;
-  pointer-events: none;
-  z-index: 2;
-  /* Liquid glass bubble material */
-  background: linear-gradient(
-    150deg,
-    rgba(255,255,255,0.24) 0%,
-    rgba(255,255,255,0.10) 45%,
-    rgba(255,255,255,0.05) 100%
-  );
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  border: 1px solid rgba(255,255,255,0.28);
-  /* Specular highlights — top catches key light */
-  box-shadow:
-    inset 0 1.5px 0 rgba(255,255,255,0.52),
-    inset 1px 0 0 rgba(255,255,255,0.18),
-    inset -1px 0 0 rgba(255,255,255,0.08),
-    inset 0 -1px 0 rgba(255,255,255,0.06),
-    0 6px 24px rgba(252,60,68,0.16),
-    0 2px 10px rgba(0,0,0,0.30),
-    0 0 0 0.5px rgba(255,255,255,0.10);
-  /* iOS 26 spring physics — liquid morphing */
-  transition:
-    left 0.44s cubic-bezier(0.34, 1.56, 0.64, 1),
-    width 0.44s cubic-bezier(0.34, 1.56, 0.64, 1),
-    opacity 0.22s ease;
-  opacity: 0;
-  will-change: left, width;
-}
-
-/* Top inner shine of the bubble */
-#lg-nav-bubble::before {
-  content: '';
-  position: absolute;
-  top: 1px; left: 8%; right: 8%;
-  height: 42%;
-  background: linear-gradient(
-    180deg,
-    rgba(255,255,255,0.22) 0%,
-    transparent 100%
-  );
-  border-radius: 12px 12px 0 0;
-  pointer-events: none;
-}
-
-/* Accent bottom glow inside bubble */
-#lg-nav-bubble::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse at 50% 110%,
-    rgba(252,60,68,0.14) 0%,
-    transparent 65%
-  );
-  border-radius: 14px;
-  pointer-events: none;
-}
-
-/* ── LIQUID SQUISH animation — iOS spring physics ── */
-@keyframes lgSquish {
-  0%   { transform: translateY(-50%) scaleX(1.00) scaleY(1.00); }
-  18%  { transform: translateY(-50%) scaleX(1.14) scaleY(0.86); }
-  42%  { transform: translateY(-50%) scaleX(0.93) scaleY(1.07); }
-  65%  { transform: translateY(-50%) scaleX(1.04) scaleY(0.96); }
-  82%  { transform: translateY(-50%) scaleX(0.98) scaleY(1.02); }
-  100% { transform: translateY(-50%) scaleX(1.00) scaleY(1.00); }
-}
-
-#lg-nav-bubble.squishing {
-  animation: lgSquish 0.52s cubic-bezier(0.34,1.56,0.64,1) forwards;
-}
-
-/* ── NAV ITEMS — above the bubble layer ── */
 .mn-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 5px 4px;
-  cursor: pointer;
-  /* Inactive: very subtle — items recede behind glass */
-  color: rgba(255,255,255,0.42);
-  transition:
-    color 0.30s cubic-bezier(0.34,1.56,0.64,1),
-    transform 0.30s cubic-bezier(0.34,1.56,0.64,1);
-  flex: 1;
-  user-select: none;
-  position: relative;
-  z-index: 5;
-  border-radius: 13px;
-  -webkit-tap-highlight-color: transparent;
-  /* Prevent overflow of ripple from being clipped by parent */
-  overflow: hidden;
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:5px 10px; cursor:pointer; color:var(--text3);
+  transition:color 0.18s var(--ease); flex:1; user-select:none;
 }
-
-.mn-item svg {
-  width: 24px;
-  height: 24px;
-  transition:
-    transform 0.38s cubic-bezier(0.34,1.56,0.64,1),
-    filter 0.30s ease,
-    color 0.30s ease;
-}
-
-.mn-item span {
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
-  transition: color 0.30s ease, font-weight 0.1s ease;
-}
-
-/* Active state — bright white, icon lifts */
-.mn-item.active {
-  color: rgba(255,255,255,0.95);
-}
-
-.mn-item.active svg {
-  transform: scale(1.10) translateY(-1.5px);
-  filter:
-    drop-shadow(0 0 5px rgba(255,255,255,0.45))
-    drop-shadow(0 1px 3px rgba(0,0,0,0.3));
-}
-
-.mn-item.active span {
-  color: #fff;
-  font-weight: 700;
-}
-
-/* Press haptic feedback */
-.mn-item:active {
-  transform: scale(0.86);
-}
-
-/* ── RIPPLE — liquid water tap effect ── */
-.mn-ripple {
-  position: absolute;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    rgba(255,255,255,0.28) 0%,
-    rgba(255,255,255,0.08) 50%,
-    transparent 100%
-  );
-  pointer-events: none;
-  transform: scale(0);
-  animation: mnRippleAnim 0.55s cubic-bezier(0.22,1,0.36,1) forwards;
-  z-index: 6;
-}
-
-@keyframes mnRippleAnim {
-  0%   { transform: scale(0); opacity: 1; }
-  60%  { opacity: 0.6; }
-  100% { transform: scale(3.2); opacity: 0; }
-}
-
-/* ── RESPONSIVE: show on mobile ── */
-@media (max-width: 700px) {
-  #mobile-nav { display: flex; }
-  #content { padding-bottom:calc(var(--player-h) + var(--nav-h) + var(--safe-b) + 24px); }
-  #player-bar { bottom:calc(var(--nav-h) + var(--safe-b)); padding:0 10px 8px; }
-  .ph { padding:18px 18px 12px; }
-  .ph-title { font-size:24px; }
-  .section { padding:0 16px; }
-  .searchbar { margin:0 16px 16px; }
-  .home-hero { margin:0 16px 18px; }
-  .tlist { padding:0 10px; }
-  .drop-zone { margin:0 16px; }
-  .import-grid { margin:16px 16px 0; }
-  .import-tip { margin:16px 16px 0; }
-  .eq-bands { padding:16px 14px; }
-  .eq-presets { padding:0 16px 16px; }
-  #fp-art { width:min(260px,76vw); height:min(260px,76vw); }
-  #fp-title { font-size:20px; }
-  #fp-tabs { margin:0 18px 10px; }
-  .album-card { width:128px; }
-  .cthumb { width:128px; height:128px; }
-  .pd-hero { padding:16px 16px 12px; }
-  .pd-actions { padding:0 16px 14px; }
-}
+.mn-item.active { color:var(--accent); }
+.mn-item svg { width:24px; height:24px; }
+.mn-item span { font-size:9.5px; font-weight:600; letter-spacing:0.2px; }
 
 /* ── FULL PLAYER ── */
 #full-player {
@@ -932,6 +697,7 @@ body {
   padding:0 24px 16px;
 }
 .eq-toggle-label { font-size:15px; color:var(--text2); }
+/* iOS-style toggle */
 .toggle { position:relative; display:inline-block; width:46px; height:28px; }
 .toggle input { opacity:0; width:0; height:0; }
 .tslider {
@@ -1181,6 +947,32 @@ body {
 .live-dot { width:7px; height:7px; border-radius:50%; background:#ff3b30; animation:pulse 1.5s infinite; }
 @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(0.85)} }
 
+/* ── RESPONSIVE ── */
+@media (max-width:700px) {
+  #sidebar { display:none; }
+  #mobile-nav { display:flex; }
+  #content { padding-bottom:calc(var(--player-h) + var(--nav-h) + var(--safe-b) + 24px); }
+  #player-bar { bottom:calc(var(--nav-h) + var(--safe-b)); padding:0 10px 8px; }
+  .ph { padding:18px 18px 12px; }
+  .ph-title { font-size:24px; }
+  .section { padding:0 16px; }
+  .searchbar { margin:0 16px 16px; }
+  .home-hero { margin:0 16px 18px; }
+  .tlist { padding:0 10px; }
+  .drop-zone { margin:0 16px; }
+  .import-grid { margin:16px 16px 0; }
+  .import-tip { margin:16px 16px 0; }
+  .eq-bands { padding:16px 14px; }
+  .eq-presets { padding:0 16px 16px; }
+  #fp-art { width:min(260px,76vw); height:min(260px,76vw); }
+  #fp-title { font-size:20px; }
+  #fp-tabs { margin:0 18px 10px; }
+  .album-card { width:128px; }
+  .cthumb { width:128px; height:128px; }
+  .pd-hero { padding:16px 16px 12px; }
+  .pd-actions { padding:0 16px 14px; }
+}
+
 /* ── SCROLLBAR ── */
 ::-webkit-scrollbar { width:0; }
 
@@ -1201,6 +993,7 @@ body {
   padding:12px 0 calc(var(--safe-b) + 16px);
   animation:slideUp 0.3s var(--slide);
 }
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
 .mm-drag { width:36px; height:4px; border-radius:2px; background:var(--surface3); margin:0 auto 16px; }
 .mm-title { font-size:16px; font-weight:700; padding:0 20px 12px; }
 .mm-item {
@@ -1214,6 +1007,39 @@ body {
 .mm-item.active { color:var(--accent); }
 .mm-sep { height:0.5px; background:var(--glass-border); margin:8px 20px; }
 
+
+/* ════════════════════════════════════════════════════════════
+   LIQUID GLASS TAB BUBBLE — Apple iOS 26 style animated indicator
+   ════════════════════════════════════════════════════════════ */
+/* Floating glass pill that slides between tabs */
+.lg-bubble {
+  position:absolute; z-index:-1; pointer-events:none;
+  border-radius:999px;
+  background:linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.04));
+  backdrop-filter:blur(24px) saturate(200%);
+  -webkit-backdrop-filter:blur(24px) saturate(200%);
+  border:0.5px solid rgba(255,255,255,0.12);
+  box-shadow:0 4px 24px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.3),inset 0 -1px 0 rgba(255,255,255,0.08);
+  transition:left 0.55s cubic-bezier(0.34,1.56,0.64,1),width 0.55s cubic-bezier(0.34,1.56,0.64,1),top 0.55s cubic-bezier(0.34,1.56,0.64,1),height 0.55s cubic-bezier(0.34,1.56,0.64,1);
+  will-change:left,width,top,height;
+  overflow:hidden;
+}
+/* Specular light shimmer that moves across the bubble */
+.lg-bubble::after {
+  content:''; position:absolute; inset:0; border-radius:inherit;
+  background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.15) 30%,rgba(255,255,255,0.06) 55%,transparent 100%);
+  background-size:300% 100%;
+  animation:lgShine 3.5s ease-in-out infinite;
+  pointer-events:none;
+}
+@keyframes lgShine {
+  0% { background-position:300% 0; }
+  50% { background-position:-100% 0; }
+  100% { background-position:300% 0; }
+}
+/* Active tab text/icon stays above bubble */
+.mn-item.active svg,
+.mn-item.active span { position:relative; z-index:1; }
 </style>
 </head>
 <body>
@@ -1517,9 +1343,8 @@ body {
     </div>
   </div>
 
-  <!-- MOBILE NAV — Liquid Glass iOS 26 -->
+  <!-- MOBILE NAV -->
   <nav id="mobile-nav">
-    <!-- Liquid glass bubble injected by JS -->
     <div class="mn-item active" data-nav="home"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg><span>Accueil</span></div>
     <div class="mn-item" data-nav="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><span>Recherche</span></div>
     <div class="mn-item" data-nav="library"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19V6l12-3v13"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="16" r="3"/></svg><span>Titres</span></div>
@@ -1714,9 +1539,14 @@ const RADIO = [
 ];
 
 function initAudio() {
+  // Do NOT route audio through AudioContext/MediaElementSource
+  // iOS kills background audio when audio goes through Web Audio API
+  // YouTube works because it plays directly through <video>
+  // EQ and visualizer are disabled for iOS background compatibility
   if (audioCtx) return;
   try {
     audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    // Create analyser for visualizer but DON'T connect to audio element
     analyserNode = audioCtx.createAnalyser();
     analyserNode.fftSize = 128;
     gainNode = audioCtx.createGain();
@@ -1728,6 +1558,7 @@ function initAudio() {
 // ─── VISUALIZER ────────────────────────────────────────────
 function startVis() {
   const wrap = document.getElementById('fp-vis');
+  // Create 32 bars
   wrap.innerHTML = '';
   const bars = [];
   for (let i=0;i<32;i++) {
@@ -1744,6 +1575,7 @@ function startVis() {
       bars.forEach(b=>b.style.height='2px');
       return;
     }
+    // Simple animated bars when analyser is not connected
     bars.forEach((b,i) => {
       const h = 4 + Math.sin(Date.now()/300 + i*0.5) * 20 + Math.random() * 15;
       b.style.height = Math.max(2, h) + 'px';
@@ -1779,6 +1611,7 @@ async function playById(trackId, resetQ=true) {
   if (idx<0) return;
   const track = library[idx];
 
+  // Get audio URL
   let audioURL = blobURLs[trackId]?.audioURL;
   if (!audioURL) {
     const stored = await dbGet(STORE_TRACKS, trackId).catch(()=>null);
@@ -1795,12 +1628,14 @@ async function playById(trackId, resetQ=true) {
 
   if (!audioURL) {
     console.warn('No audioURL for', trackId);
+    // Skip to next track instead of stopping
     setTimeout(()=>nextTrack(), 200);
     return;
   }
 
   initAudio();
 
+  // Force resume AudioContext (critical on iOS)
   if (audioCtx) {
     try {
       if (audioCtx.state !== 'running') await audioCtx.resume();
@@ -1814,9 +1649,10 @@ async function playById(trackId, resetQ=true) {
   if (xfadeTimeout) { clearTimeout(xfadeTimeout); xfadeTimeout=null; }
 
   audio.src = audioURL;
-  audio.load();
+  audio.load(); // Force reload (fixes same-URL restart on iOS)
   audio.playbackRate = playSpeed;
 
+  // Try to play with retry
   let played = false;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -1826,6 +1662,7 @@ async function playById(trackId, resetQ=true) {
       break;
     } catch(e) {
       console.warn('play attempt ' + (attempt+1) + ' failed:', e.message);
+      // On iOS, try suspending + resuming context
       if (audioCtx && attempt < 2) {
         try {
           await audioCtx.suspend();
@@ -1841,6 +1678,7 @@ async function playById(trackId, resetQ=true) {
     console.warn('All play attempts failed for', trackId, '- skipping');
     isPlaying = false;
     updatePlayIcons();
+    // Auto-skip to next track after delay (longer than isAdvancing guard)
     setTimeout(()=>nextTrack(), 900);
     return;
   }
@@ -1871,7 +1709,7 @@ function togglePlay() {
   if (library.length===0) return;
   if (!audio.src) { playByIdx(0); return; }
   const now=Date.now();
-  if(now-lastPlayTap<300) return;
+  if(now-lastPlayTap<300) return; // debounce 300ms
   lastPlayTap=now;
   if (isPlaying) {
     _userPaused = true;
@@ -1972,6 +1810,8 @@ function openAirPlay() {
 
 // ─── AUDIO EVENTS ──────────────────────────────────────────
 audio.addEventListener('ended', () => {
+  console.log('Audio ended, repeatMode=' + repeatMode + ' queueIdx=' + queueIdx + '/' + queue.length);
+  // Small delay to let any pending play() settle
   setTimeout(()=>nextTrack(), 50);
 });
 
@@ -1984,25 +1824,29 @@ audio.addEventListener('timeupdate', () => {
   $('pp-fill').style.width = sp;
   $('fp-cur').textContent = fmt(audio.currentTime);
   $('fp-dur').textContent = fmt(audio.duration);
+
 });
 
 audio.addEventListener('play', () => {
+  // If user had paused, iOS may auto-resume — block it immediately
   if (_userPaused) { audio.pause(); return; }
   isPlaying=true;
   updatePlayIcons();
   updateArtState();
   if('mediaSession' in navigator) navigator.mediaSession.playbackState='playing';
   unlockSilent();
+  // Request PiP so audio survives iOS background (same as YouTube)
   requestBackgroundPiP();
 });
 audio.addEventListener('pause', () => { isPlaying=false; updatePlayIcons(); updateArtState(); if('mediaSession' in navigator) navigator.mediaSession.playbackState='paused'; });
 
+// Request PiP for background audio on iOS — same trick as YouTube
 async function requestBackgroundPiP() {
   if (!('pictureInPictureEnabled' in document)) return;
   try {
     if (document.pictureInPictureElement) await document.exitPictureInPicture();
     await audio.requestPictureInPicture();
-  } catch(e) {}
+  } catch(e) { /* PiP not available */ }
 }
 audio.addEventListener('error', () => { toast('⚠️ Lecture impossible'); setTimeout(nextTrack,400); });
 audio.addEventListener('waiting', () => updatePlayIcons());
@@ -2031,12 +1875,14 @@ function updatePlayerUI() {
   if (!t) return;
   const artURL = blobURLs[t.id]?.artURL || null;
 
+  // Mini bar
   $('pp-title').textContent = t.title;
   $('pp-artist').textContent = t.artist;
   const ppImg = $('pp-art-img'), ppPh = $('pp-art-ph');
   if (artURL) { ppImg.src=artURL; ppImg.style.display='block'; ppPh.style.display='none'; }
   else { ppImg.style.display='none'; ppPh.style.display='flex'; }
 
+  // Full player
   $('fp-title').textContent = t.title;
   $('fp-artist').textContent = t.artist;
   $('fp-hdtitle').textContent = t.album!=='Album inconnu' ? t.album : 'En cours';
@@ -2045,14 +1891,17 @@ function updatePlayerUI() {
   if (artURL) { fpImg.src=artURL; fpImg.style.display='block'; fpPh.style.display='none'; }
   else { fpImg.style.display='none'; fpPh.style.display='flex'; }
 
+  // Hero
   $('hero-track').textContent = t.title;
   $('hero-artist').textContent = t.artist + (t.album!=='Album inconnu' ? ' — '+t.album : '');
   const heroBgImg = $('hero-bg-img');
   if (artURL) { heroBgImg.src=artURL; heroBgImg.style.display='block'; }
   else { heroBgImg.style.display='none'; }
 
+  // Fav
   updateFavBtn(t);
 
+  // Colors
   if (artURL) {
     const img = new Image();
     img.crossOrigin='anonymous';
@@ -2062,6 +1911,7 @@ function updatePlayerUI() {
     applyColors('#fc3c44','#1a1a2e');
   }
 
+  // MediaSession
   if ('mediaSession' in navigator) {
     navigator.mediaSession.metadata = new MediaMetadata({
       title:t.title, artist:t.artist, album:t.album,
@@ -2191,6 +2041,7 @@ async function importAudio(file) {
     album: tags.album||'Album inconnu',
     duration, dateAdded:Date.now(), favorite:false
   };
+  // Store full record with blobs in IDB
   await dbPut(STORE_TRACKS, { ...meta, audioBlob, artBlob });
   return meta;
 }
@@ -2199,6 +2050,7 @@ async function importVideo(file) {
   showProc('Extraction audio…', file.name);
   const id = 'tr_' + Date.now() + '_' + Math.random().toString(36).slice(2);
   try {
+    // Decode audio via AudioContext
     const buf = await file.arrayBuffer();
     const tmpCtx = new (window.AudioContext||window.webkitAudioContext)();
     const decoded = await tmpCtx.decodeAudioData(buf);
@@ -2213,6 +2065,7 @@ async function importVideo(file) {
     await dbPut(STORE_TRACKS, { ...meta, audioBlob, artBlob:null });
     return meta;
   } catch(e) {
+    // Fallback: store video file directly (most browsers can play video audio)
     const duration = await getVideoDuration(URL.createObjectURL(file));
     const meta = {
       id, title:cleanName(file.name), artist:'Extrait vidéo',
@@ -2295,12 +2148,14 @@ const cleanName = n => n.replace(/\.[^/.]+$/,'').replace(/[-_]+/g,' ').replace(/
 // ─── LIBRARY LOAD ──────────────────────────────────────────
 async function loadLibrary() {
   const all = await dbAll(STORE_TRACKS);
-  library = all.map(({audioBlob,artBlob,...meta}) => meta);
+  library = all.map(({audioBlob,artBlob,...meta}) => meta); // strip blobs from memory
+  // Revoke old URLs
   Object.values(blobURLs).forEach(u=>{
     if(u.audioURL) URL.revokeObjectURL(u.audioURL);
     if(u.artURL) URL.revokeObjectURL(u.artURL);
   });
   blobURLs = {};
+  // Pre-create art URLs (small — just for display)
   for (const rec of all) {
     if (rec.artBlob) {
       blobURLs[rec.id] = blobURLs[rec.id] || {};
@@ -2616,6 +2471,7 @@ async function toggleFav(trackIdOrIdx) {
   else t = library.find(x=>x.id===trackIdOrIdx);
   if (!t) return;
   t.favorite = !t.favorite;
+  // Update in DB
   const rec = await dbGet(STORE_TRACKS, t.id);
   if (rec) { rec.favorite=t.favorite; await dbPut(STORE_TRACKS, rec); }
   updateFavBtn(t);
@@ -2632,6 +2488,7 @@ function openNewPlaylistModal() {
     <button class="modal-btn secondary" onclick="closeModal()">Annuler</button>
     <div class="modal-pad"></div>
   `);
+  // Focus after modal open animation — fixes iOS keyboard
   setTimeout(()=>{ const el=$('pl-name-inp'); if(el){ el.focus(); } }, 350);
 }
 
@@ -2787,6 +2644,7 @@ async function removeTrack(trackId) {
   library.splice(idx,1);
   if(currentIdx===idx){audio.pause();isPlaying=false;currentIdx=-1;}
   else if(currentIdx>idx) currentIdx--;
+  // Remove from playlists
   for(const pl of playlists){
     if(pl.trackIds.includes(trackId)){
       pl.trackIds=pl.trackIds.filter(id=>id!==trackId);
@@ -2944,6 +2802,7 @@ function renderLyrics() {
 function openModal(html) {
   $('modal-body').innerHTML=html;
   $('modal-ov').classList.add('open');
+  // Scroll modal into view above keyboard on iOS
   setTimeout(()=>{
     const inp=$('modal-body').querySelector('input');
     if(inp) {
@@ -3017,6 +2876,7 @@ document.addEventListener('keydown',e=>{
 });
 
 // ─── iOS KEYBOARD FIX ──────────────────────────────────────
+// When keyboard opens on iOS, it pushes viewport — prevent content clipping
 function adjustForKeyboard() {
   if(window.visualViewport) {
     window.visualViewport.addEventListener('resize',()=>{
@@ -3040,50 +2900,64 @@ function checkInstallPrompt() {
   }
 }
 
+
 // ─── MOBILE MORE SHEET ──────────────────────────────────────
 function openMobileMore() { $('mobile-more-sheet').classList.add('open'); }
 function closeMobileMore() { $('mobile-more-sheet').classList.remove('open'); }
 
 // ─── iOS BACKGROUND AUDIO ───────────────────────────────
+// Save position when going to background
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
+    // App going to background — save position
     if (isPlaying) saveSession();
   } else {
+    // App returning to foreground
+    // If user had paused, iOS may auto-resume audio — force pause it
     if (_userPaused && !audio.paused) {
       audio.pause();
       isPlaying = false;
       updatePlayIcons();
     }
+    // If music was playing and AudioContext was suspended, resume it
     else if (isPlaying && audioCtx && audioCtx.state === 'suspended') {
       audioCtx.resume().catch(() => {});
     }
   }
 });
+// Re-request PiP when returning to foreground
 if('pictureInPictureEnabled' in document) {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && isPlaying) requestBackgroundPiP();
   });
 }
 
-// ─── iOS AUDIO SESSION ─────────────────────────────────
+// ─── iOS AUDIO SESSION (background playback) ─────────────
+// Safari 17+ AudioSession API — tells iOS this is music playback
 try {
   if ('AudioSession' in window) {
     const session = new AudioSession();
-    session.type = 'playback';
+    session.type = 'playback'; // keeps audio alive in background
   } else if ('audioSession' in navigator) {
     navigator.audioSession.type = 'playback';
   }
 } catch(e) {}
 
+// Silent audio element: keeps iOS audio session alive in background
+// Uses <audio> element (not 2nd AudioContext) - iOS allows only one AudioContext
 const _silentEl = document.getElementById('silent-audio');
 function unlockSilent() {
   if (_silentEl && _silentEl.paused) {
     _silentEl.play().catch(()=>{});
   }
 }
+// Unlock on first user gesture (required by iOS)
 ['click','touchstart','pointerdown'].forEach(evt => {
   document.addEventListener(evt, unlockSilent, {once:true, passive:true});
 });
+// When track plays, ensure silent element is playing too
+// unlockSilent is now called inside the main play handler (Change 3)
+// Don't stop silent on pause - it must keep playing for iOS background
 
 // ─── INIT ──────────────────────────────────────────────────
 async function init() {
@@ -3099,12 +2973,15 @@ async function init() {
   adjustForKeyboard();
   checkInstallPrompt();
 
+  // Restore shuffle/repeat UI
   $('fp-shuf-btn').classList.toggle('lit',isShuffle);
   $('fp-shuf-btn').classList.toggle('dim',!isShuffle);
 
+  // Greeting time-based
   const h=new Date().getHours();
   $('home-greeting').textContent = (h<12?'Bonjour':h<18?'Bonne après-midi':'Bonsoir') + ' 👋';
 
+  // Hide splash
   const splash=$('splash');
   splash.style.opacity='0';
   setTimeout(()=>splash.remove(),600);
@@ -3113,135 +2990,40 @@ async function init() {
 }
 
 init();
-</script>
 
-<!-- ═══════════════════════════════════════════════════════════
-     LIQUID GLASS NAV — iOS 26 bubble animation engine
-     Injected after main JS — zero changes to existing code
-     ═══════════════════════════════════════════════════════════ -->
-<script>
-(function() {
-  'use strict';
-
-  // ── Create the liquid glass sliding bubble ──
-  const bubble = document.createElement('div');
-  bubble.id = 'lg-nav-bubble';
-  const nav = document.getElementById('mobile-nav');
-  if (!nav) return;
-  // Insert as first child so it's below all mn-items in stacking
-  nav.insertBefore(bubble, nav.firstChild);
-
-  // ── Position bubble under a nav item ──
-  function positionBubble(item, animate) {
-    if (!item) return;
-    const navRect = nav.getBoundingClientRect();
-    const itemRect = item.getBoundingClientRect();
-    const left = itemRect.left - navRect.left;
-    const width = itemRect.width;
-
-    if (!animate) {
-      // Instant position (no transition)
-      const origTransition = bubble.style.transition;
-      bubble.style.transition = 'none';
-      bubble.style.left = left + 'px';
-      bubble.style.width = width + 'px';
-      // Force reflow before restoring transition
-      bubble.offsetHeight;
-      bubble.style.transition = origTransition || '';
-    } else {
-      // Animated — let CSS handle spring transition
-      bubble.style.left = left + 'px';
-      bubble.style.width = width + 'px';
-      // Trigger liquid squish
-      bubble.classList.remove('squishing');
-      void bubble.offsetWidth; // reflow to restart animation
-      bubble.classList.add('squishing');
-      bubble.addEventListener('animationend', () => {
-        bubble.classList.remove('squishing');
-      }, { once: true });
-    }
+// ─── LIQUID GLASS BUBBLE INDICATOR ──────────────────────────
+// Watches .mn-item.active changes and animates a glass bubble
+// between tabs without modifying any existing function.
+(function(){
+  var n=document.getElementById('mobile-nav');
+  if(!n||n.querySelector('.lg-bubble'))return;
+  var b=document.createElement('div');
+  b.className='lg-bubble';
+  b.style.cssText='display:none';
+  n.appendChild(b);
+  function p(){
+    if(window.getComputedStyle(n).display==='none'){b.style.display='none';return;}
+    var a=n.querySelector('.mn-item.active');
+    if(!a){b.style.display='none';return;}
+    b.style.display='';
+    var nr=n.getBoundingClientRect(), ar=a.getBoundingClientRect();
+    var pad=Math.min(4,ar.width*0.06);
+    b.style.left=(ar.left-nr.left-pad)+'px';
+    b.style.width=(ar.width+pad*2)+'px';
+    b.style.top=(ar.top-nr.top+1.5)+'px';
+    b.style.height=(ar.height-3)+'px';
   }
-
-  // ── Water ripple on tap ──
-  function spawnRipple(item, e) {
-    const rect = item.getBoundingClientRect();
-    const ripple = document.createElement('div');
-    ripple.className = 'mn-ripple';
-    const size = Math.max(rect.width, rect.height) * 0.7;
-    const x = (e.clientX !== undefined ? e.clientX : rect.left + rect.width / 2) - rect.left - size / 2;
-    const y = (e.clientY !== undefined ? e.clientY : rect.top + rect.height / 2) - rect.top - size / 2;
-    ripple.style.cssText = `width:${size}px;height:${size}px;left:${x}px;top:${y}px;`;
-    item.appendChild(ripple);
-    ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
-  }
-
-  // ── Intercept all nav item clicks ──
-  // We use capture:true so we fire BEFORE nav() updates .active classes
-  function attachNavClick(item) {
-    item.addEventListener('click', function(e) {
-      // Animate bubble to this item
-      positionBubble(this, true);
-      // Spawn ripple
-      spawnRipple(this, e);
-    }, { capture: true, passive: true });
-  }
-
-  // Attach to all data-nav items
-  document.querySelectorAll('#mobile-nav .mn-item[data-nav]').forEach(attachNavClick);
-
-  // Attach to "Plus" button (no data-nav)
-  const moreBtn = document.getElementById('mn-more');
-  if (moreBtn) {
-    moreBtn.addEventListener('click', function(e) {
-      positionBubble(this, true);
-      spawnRipple(this, e);
-    }, { capture: true, passive: true });
-  }
-
-  // ── Initialize position on load ──
-  function initBubble() {
-    const active = nav.querySelector('.mn-item.active');
-    if (active) {
-      positionBubble(active, false);
-      // Fade in bubble
-      bubble.style.opacity = '1';
-    }
-  }
-
-  // Wait for layout to be complete
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(initBubble, 150));
-  } else {
-    setTimeout(initBubble, 150);
-  }
-
-  // ── Re-position on window resize ──
-  let resizeTimer;
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-      const active = nav.querySelector('.mn-item.active');
-      if (active) positionBubble(active, false);
-    }, 100);
-  }, { passive: true });
-
-  // ── Hook into existing nav() function to sync bubble ──
-  // nav() updates .active classes — we update bubble position after
-  const _originalNav = window.nav;
-  if (typeof _originalNav === 'function') {
-    window.nav = function(viewName) {
-      _originalNav(viewName);
-      // After nav() sets .active, snap bubble to new active item (no animate — nav() already triggers click handler animation)
-      setTimeout(() => {
-        const active = document.querySelector('#mobile-nav .mn-item.active');
-        if (active) positionBubble(active, false);
-      }, 8);
-    };
-  }
-
+  n.querySelectorAll('.mn-item').forEach(function(el){
+    (new MutationObserver(p)).observe(el,{attributes:true,attributeFilter:['class']});
+  });
+  p();
+  window.addEventListener('resize',p);
+  var vo=new MutationObserver(function(){
+    if(window.getComputedStyle(n).display!=='none')p();
+  });
+  vo.observe(n,{attributes:true,attributeFilter:['style','class']});
 })();
 </script>
-
 <!-- MOBILE MORE SHEET -->
 <div id="mobile-more-sheet" onclick="if(event.target===this)closeMobileMore()">
   <div id="mobile-more-content">
