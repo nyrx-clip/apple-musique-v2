@@ -898,7 +898,7 @@ body {
 
 /* ── SLEEP TIMER ── */
 #sleep-badge {
-  position:fixed; top:calc(var(--safe-t) + 8px); right:16px;
+  position:fixed; top:calc(var(--safe-t) + 8px); left:50%; transform:translateX(-50%);
   background:rgba(255,149,0,0.92); color:#fff;
   border-radius:12px; padding:5px 10px;
   font-size:11px; font-weight:700; z-index:300;
@@ -2217,146 +2217,118 @@ function encodeWAV(buf) {
 async function readTags(file, fullFile) {
   return new Promise(async res => {
     try {
-      const maxRead = Math.min(file.size, 2 * 1024 * 1024); // Read up to 2MB
-      const head = await readSlice(file, 0, maxRead);
-      const bytes = new Uint8Array(head);
+      const maxRead = Math.min(file.size, 3 * 1024 * 1024);
+      let head = await readSlice(file, 0, maxRead);
+      let bytes = new Uint8Array(head);
 
-      // Detect format: ID3 (MP3) or MP4 (M4A/AAC/Apple)
+      // Try ID3 (MP3)
       if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) {
-        // ID3v2
         let totalTagSize = ((bytes[6] & 0x7f) << 21) | ((bytes[7] & 0x7f) << 14) | ((bytes[8] & 0x7f) << 7) | (bytes[9] & 0x7f);
         let buf = head;
         if (totalTagSize + 10 > maxRead && fullFile) {
           buf = await readSlice(file, 0, Math.min(totalTagSize + 10, file.size));
         }
-        res(parseID3(buf));
-      } else {
-        // Try MP4/M4A
-        res(parseMP4(bytes));
+        return res(parseID3(buf));
       }
-    } catch(e) { res({title:null,artist:null,album:null,artBlob:null}); }
+
+      // Try MP4/M4A from start
+      let result = parseMP4(bytes);
+      let found = result.title || result.artist || result.album || result.artBlob;
+
+      // If not found and moov might be at end, try reading last 2MB
+      if (!found && file.size > maxRead) {
+        const tail = await readSlice(file, Math.max(0, file.size - maxRead), file.size);
+        let tailBytes = new Uint8Array(tail);
+        // Also include first few KB (ftyp box) for header detection
+        const ftyp = await readSlice(file, 0, Math.min(file.size, 4096));
+        let combined = new Uint8Array(ftyp.byteLength + tail.byteLength);
+        combined.set(new Uint8Array(ftyp), 0);
+        combined.set(new Uint8Array(tail), ftyp.byteLength);
+        result = parseMP4(combined);
+        found = result.title || result.artist || result.album || result.artBlob;
+      }
+
+      return res(result);
+    } catch(e) {
+      console.warn('readTags error:', e);
+      res({title:null,artist:null,album:null,artBlob:null});
+    }
   });
 }
 
 function parseMP4(bytes) {
   const res = {title:null,artist:null,album:null,artBlob:null};
-  let pos = 0;
+  const len = bytes.length;
 
-  function readBox(start) {
-    if (start + 8 > bytes.length) return null;
-    let size = (bytes[start] << 24) | (bytes[start+1] << 16) | (bytes[start+2] << 8) | bytes[start+3];
-    const type = String.fromCharCode(bytes[start+4], bytes[start+5], bytes[start+6], bytes[start+7]);
-    if (size === 0) size = bytes.length - start; // extended to end of file
-    if (size < 8 || start + size > bytes.length) return null;
-    return { size, type, data: bytes.slice(start + 8, start + size), start };
-  }
-
-  function findBox(data, targetType, startOff) {
-    let i = startOff || 0;
-    while (i + 8 <= data.length) {
-      const sz = (data[i] << 24) | (data[i+1] << 16) | (data[i+2] << 8) | data[i+3];
-      if (sz < 8) break;
-      const tp = String.fromCharCode(data[i+4], data[i+5], data[i+6], data[i+7]);
-      if (tp === targetType) return { size: sz, type: tp, data: data.slice(i + 8, i + sz), start: i };
-      i += sz;
+  function matchAt(off, str) {
+    for (let k = 0; k < str.length; k++) {
+      if (bytes[off + k] !== str.charCodeAt(k)) return false;
     }
-    return null;
+    return true;
   }
 
-  function readString(boxData) {
-    // data box: type(4) + locale(4) + string
-    if (boxData.length < 8) return null;
-    const type = (boxData[0] << 24) | (boxData[1] << 16) | (boxData[2] << 8) | boxData[3];
-    let strStart = 8;
-    // Skip locale
-    if (type === 1) {
-      // UTF-8 text
-      let r = '';
-      for (let i = strStart; i < boxData.length; i++) {
-        if (boxData[i] === 0) break;
-        r += String.fromCharCode(boxData[i]);
-      }
-      return r;
+  function readStr(off) {
+    let r = '';
+    for (let i = off; i < len && bytes[i] !== 0; i++) r += String.fromCharCode(bytes[i]);
+    return r || null;
+  }
+
+  function readUTF16Str(off) {
+    let r = '';
+    for (let i = off; i < len - 1; i += 2) {
+      const c = (bytes[i] << 8) | bytes[i+1];
+      if (c === 0) break;
+      r += String.fromCodePoint(c);
     }
-    return null;
+    return r || null;
   }
 
-  function readImage(boxData) {
-    if (boxData.length < 12) return null;
-    const type = (boxData[0] << 24) | (boxData[1] << 16) | (boxData[2] << 8) | boxData[3];
-    if (type !== 13 && type !== 14) return null; // 13 = JPEG, 14 = PNG
-    const imgData = boxData.slice(8);
-    if (imgData.length < 50) return null;
-    const mime = type === 13 ? 'image/jpeg' : 'image/png';
-    return new Blob([imgData], { type: mime });
+  function readU32(off) {
+    return ((bytes[off] << 24) >>> 0) | (bytes[off+1] << 16) | (bytes[off+2] << 8) | bytes[off+3];
   }
 
-  // Walk box hierarchy to find moov > udta > meta > ilst
-  while (pos + 8 <= bytes.length) {
-    const box = readBox(pos);
-    if (!box) break;
-    if (box.type === 'moov') {
-      let p = 0;
-      while (p + 8 <= box.data.length) {
-        const mBox = readBoxAt(box.data, p);
-        if (!mBox) break;
-        if (mBox.type === 'udta') {
-          let u = 0;
-          while (u + 8 <= mBox.data.length) {
-            const uBox = readBoxAt(mBox.data, u);
-            if (!uBox) break;
-            if (uBox.type === 'meta') {
-              // meta box: skip 4 bytes of version/flags
-              let m = 4;
-              while (m + 8 <= uBox.data.length) {
-                const iBox = readBoxAt(uBox.data, m);
-                if (!iBox) break;
-                if (iBox.type === 'ilst') {
-                  // Iterate through ilst items
-                  let il = 0;
-                  while (il + 8 <= iBox.data.length) {
-                    const item = readBoxAt(iBox.data, il);
-                    if (!item) break;
-                    const itemKey = item.type;
-                    // Each item contains a 'data' box
-                    let dPos = 0;
-                    while (dPos + 8 <= item.data.length) {
-                      const dBox = readBoxAt(item.data, dPos);
-                      if (!dBox) break;
-                      if (dBox.type === 'data') {
-                        if (itemKey === '©nam' && !res.title) res.title = readString(dBox.data);
-                        else if (itemKey === '©ART' && !res.artist) res.artist = readString(dBox.data);
-                        else if (itemKey === '©alb' && !res.album) res.album = readString(dBox.data);
-                        else if (itemKey === 'aART' && !res.artist) res.artist = readString(dBox.data);
-                        else if (itemKey === 'covr' && !res.artBlob) res.artBlob = readImage(dBox.data);
-                      }
-                      dPos += dBox.size + 8;
-                    }
-                    il += item.size + 8;
-                  }
-                }
-                m += iBox.size + 8;
-              }
-            }
-            u += uBox.size + 8;
-          }
+  for (let i = 0; i < len - 12; i++) {
+    const boxType = String.fromCharCode(bytes[i+4], bytes[i+5], bytes[i+6], bytes[i+7]);
+    if (boxType !== '©nam' && boxType !== '©ART' && boxType !== '©alb' && boxType !== 'aART' && boxType !== 'covr' && boxType !== 'PICT') continue;
+
+    const boxSize = readU32(i);
+    if (boxSize < 16 || i + boxSize > len) continue;
+
+    const isImage = boxType === 'covr' || boxType === 'PICT';
+    if (isImage && !res.artBlob) {
+      for (let j = i + 8; j < i + boxSize - 12; j++) {
+        if (!matchAt(j + 4, 'data')) continue;
+        const dSize = readU32(j);
+        if (dSize < 16 || j + dSize > len) continue;
+        const imgType = readU32(j + 8);
+        if (imgType !== 13 && imgType !== 14) continue;
+        const imgData = bytes.slice(j + 16, j + dSize);
+        if (imgData.length > 100) {
+          res.artBlob = new Blob([imgData], { type: imgType === 13 ? 'image/jpeg' : 'image/png' });
         }
-        p += mBox.size + 8;
+        break;
+      }
+    } else {
+      const targetKey = boxType === '©nam' ? 'title' : (boxType === '©ART' || boxType === 'aART') ? 'artist' : boxType === '©alb' ? 'album' : null;
+      if (!targetKey || res[targetKey]) continue;
+
+      for (let j = i + 8; j < i + boxSize - 12; j++) {
+        if (!matchAt(j + 4, 'data')) continue;
+        const dSize = readU32(j);
+        if (dSize < 16 || j + dSize > len) continue;
+        const dataType = readU32(j + 8);
+        let strVal = null;
+        if (dataType === 0 || dataType === 1) strVal = readStr(j + 16);
+        else if (dataType === 2) strVal = readUTF16Str(j + 16);
+        if (strVal) res[targetKey] = strVal;
+        break;
       }
     }
-    pos += box.size;
+
+    if (res.title && res.artist && res.artBlob) break;
   }
 
   return res;
-}
-
-function readBoxAt(data, start) {
-  if (start + 8 > data.length) return null;
-  let size = (data[start] << 24) | (data[start+1] << 16) | (data[start+2] << 8) | data[start+3];
-  const type = String.fromCharCode(data[start+4], data[start+5], data[start+6], data[start+7]);
-  if (size === 0) size = data.length - start;
-  if (size < 8 || start + size > data.length) return null;
-  return { size, type, data: data.slice(start + 8, start + size), start };
 }
 
 function readSlice(file, start, end) {
