@@ -1300,7 +1300,7 @@ body {
             <div><div class="ib-t">Extraire d'une vidéo</div><div class="ib-s">MP4, MKV, WebM, MOV…</div></div>
           </button>
         </div>
-        <div class="import-tip">💡 <strong>Tout reste local.</strong> Tes fichiers sont stockés dans ton navigateur via IndexedDB — ils persistent entre les sessions, aucun serveur impliqué.</div>
+        <div class="import-tip">💡 <strong>Tout reste local.</strong> Tes fichiers sont stockés dans ton navigateur via IndexedDB — ils persistent entre les sessions, aucun serveur impliqué.<br><br>🖼️ <strong>Pochette :</strong> Si tu as l'image séparée, sélectionne-la en même temps que le fichier audio. L'app détecte automatiquement <em>cover.jpg</em>, <em>folder.png</em>, ou toute image du même nom que le morceau.</div>
         <div id="import-library" style="margin-top:16px"></div>
       </div>
 
@@ -1403,7 +1403,7 @@ body {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <span id="fp-hdtitle">En cours</span>
-      <button id="fp-hdmenu" onclick="openTrackCtx(currentIdx)">
+      <button id="fp-hdmenu" onclick="openTrackCtx(library[currentIdx]?.id, event)">
         <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
       </button>
     </div>
@@ -2088,6 +2088,9 @@ async function handleFiles(files) {
     if (Object.keys(lrcMap).length) toast('📄 Fichiers .lrc chargés');
     else return;
   }
+  if (valid.length && !imgFiles.length) {
+    toast('💡 Sélectionne aussi les images (cover.jpg, etc.) pour avoir les pochettes');
+  }
   showProc(`Importation de ${valid.length} fichier${valid.length>1?'s':''}…`,'');
   let done=0;
   for (const f of valid) {
@@ -2121,12 +2124,22 @@ async function importAudio(file, imgMap) {
   let artBlob = tags.artBlob || null;
   if (!artBlob && imgMap) {
     const baseName = file.name.replace(/\.[^/.]+$/, '').toLowerCase();
-    let matched = imgMap[baseName]
-      || imgMap['cover'] || imgMap['folder']
-      || imgMap['artwork'] || imgMap['front'];
+    // Try multiple matching patterns
+    const patterns = [
+      baseName,                     // musique.mp3 -> musique.jpg
+      baseName.replace(/\s+/g, ''), // ma musique -> mamusique
+      baseName.replace(/[-\s]+/g, '_'), // ma musique -> ma_musique
+      'cover', 'folder', 'artwork', 'front',
+      'albumart', 'thumb', 'thumbnail'
+    ];
+    let matched = null;
+    for (const p of patterns) {
+      if (imgMap[p]) { matched = imgMap[p]; break; }
+    }
+    // Fallback: take the first image if nothing matched
     if (!matched) {
       const vals = Object.values(imgMap);
-      if (vals.length) matched = vals[0];
+      if (vals.length === 1) matched = vals[0];
     }
     if (matched) {
       artBlob = new Blob([await matched.arrayBuffer()], { type: matched.type || 'image/jpeg' });
@@ -2842,16 +2855,7 @@ function closeCtx(){ $('ctx').style.display='none'; }
 
 function openTrackCtx(trackId, event) {
   const t=library.find(x=>x.id===trackId);
-  if (!t) {
-    // Fallback: show player options even without track
-    ctx(event,[
-      {label:'⏰ Minuteur',action:()=>{closeCtx();openSleepModal();}},
-      {label:'⚙️ Paramètres',action:()=>{closeCtx();nav('settings');}},
-      'sep',
-      {label:'❌ Fermer',action:()=>closeCtx()}
-    ]);
-    return;
-  }
+  if (!t) return;
   ctx(event,[
     {label:'▶ Lire',action:()=>playById(trackId)},
     {label:'⏭ Lire ensuite',action:()=>playNext(trackId)},
@@ -2859,9 +2863,6 @@ function openTrackCtx(trackId, event) {
     'sep',
     {label:t.favorite?'💔 Retirer des favoris':'❤️ Ajouter aux favoris',action:()=>toggleFav(trackId)},
     {label:'📋 Ajouter à une playlist',action:()=>openAddToPlaylistModal(trackId)},
-    'sep',
-    {label:'⏰ Minuteur',action:()=>{closeCtx();openSleepModal();}},
-    {label:'⚙️ Paramètres',action:()=>{closeCtx();nav('settings');}},
     'sep',
     {label:'🗑️ Supprimer',cls:'red',action:()=>removeTrack(trackId)}
   ]);
@@ -2938,22 +2939,22 @@ $('search-inp').addEventListener('input', e=>{
   const q=e.target.value.toLowerCase().trim();
   const el=$('search-results');
   if(!q){
-    // Show suggestions
-    const artists = [...new Set(library.map(t=>t.artist).filter(Boolean))].slice(0,8);
-    const genreSuggestions = ['Pop','Rock','Jazz','Classique','Hip-Hop','Électronique','R&B','Metal'];
+    // Show real track suggestions
+    const recent = [...library].sort((a,b)=>b.dateAdded-a.dateAdded).slice(0,5);
+    const artists = [...new Set(library.map(t=>t.artist).filter(Boolean))].slice(0,6);
     el.innerHTML=`
-      <div style="padding:12px 20px 8px;font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Suggestions</div>
+      ${recent.length ? `<div style="padding:12px 20px 6px;font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Récemment importés</div>
+      <div class="tlist" style="padding:0 12px">${recent.map((t,i)=>trackItemHTML(t,i+1,false)).join('')}</div>` : ''}
+      ${artists.length ? `<div style="padding:12px 20px 6px;font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Artistes</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 16px">
-        ${[...new Set([...artists, ...genreSuggestions])].slice(0,12).map(s =>
-          `<button class="eq-preset" onclick="quickSearch('${esc(s)}')">${esc(s)}</button>`
-        ).join('')}
-      </div>
-      ${library.length ? `<div style="padding:0 20px 8px;font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Parcourir</div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 16px">
-        <button class="eq-preset" onclick="quickSearch('')">🎵 Tous les titres</button>
+        ${artists.map(s => `<button class="eq-preset" onclick="quickSearch('${esc(s)}')">${esc(s)}</button>`).join('')}
+      </div>` : ''}
+      ${library.length ? `<div style="padding:0 20px 6px;font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Parcourir</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 20px">
+        <button class="eq-preset" onclick="nav('library')">🎵 Bibliothèque</button>
         <button class="eq-preset" onclick="nav('albums')">💿 Albums</button>
         <button class="eq-preset" onclick="nav('artists')">🎤 Artistes</button>
-      </div>` : ''}
+      </div>` : `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><h3>Recherche</h3><p>Importe de la musique pour voir des suggestions</p></div>`}
     `;
     return;
   }
