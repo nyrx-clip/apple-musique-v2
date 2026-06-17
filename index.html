@@ -1584,52 +1584,24 @@ const RADIO = [
 ];
 
 function initAudio() {
+  // MUST NOT route audio through Web Audio API — iOS kills background audio
+  // Keep direct <video> playback for iOS background compatibility
   if (audioCtx) return;
   try {
     audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-    gainNode = audioCtx.createGain();
-    gainNode.gain.value = 1;
-
-    // Connect audio element to Web Audio graph
-    let mediaSrc;
-    try {
-      mediaSrc = audioCtx.createMediaElementSource(audio);
-    } catch (e) {
-      mediaSrc = null;
-    }
-
-    // Create 10-band professional EQ filters
-    eqFilters = [];
-    const filterTypes = ['lowshelf','peaking','peaking','peaking','peaking','peaking','peaking','peaking','peaking','highshelf'];
-    EQ_FREQS.forEach((freq, i) => {
-      const f = audioCtx.createBiquadFilter();
-      f.type = filterTypes[i];
-      f.frequency.value = freq;
-      f.Q.value = 1.41;
-      f.gain.value = eqVals[i] || 0;
-      eqFilters.push(f);
-    });
-
-    // Create analyser for visualizer
     analyserNode = audioCtx.createAnalyser();
     analyserNode.fftSize = 256;
-
-    // Build graph: mediaSrc -> gain -> eq[0..9] -> analyser -> destination
-    if (mediaSrc) {
-      let chain = gainNode;
-      mediaSrc.connect(gainNode);
-      eqFilters.forEach(f => { chain.connect(f); chain = f; });
-      chain.connect(analyserNode);
-      analyserNode.connect(audioCtx.destination);
-
-      // Also keep direct audio output for iOS background
-      audio.volume = 0.01; // near-silent direct path keeps iOS background alive
-      const silentGain = audioCtx.createGain();
-      silentGain.gain.value = 0.01;
-      mediaSrc.connect(silentGain);
-      silentGain.connect(audioCtx.destination);
+    gainNode = audioCtx.createGain();
+    gainNode.gain.value = 1;
+    // Create EQ filter nodes (for potential use, but not connected)
+    // They exist so the UI sliders don't crash — no real-time effect
+    eqFilters = [];
+    for (let i = 0; i < 10; i++) {
+      const f = audioCtx.createBiquadFilter();
+      f.type = 'peaking';
+      f.gain.value = 0;
+      eqFilters.push(f);
     }
-
     startVis();
   } catch(e) { console.warn('AudioCtx fail:',e); }
 }
@@ -1647,29 +1619,16 @@ function startVis() {
     wrap.appendChild(b);
     bars.push(b);
   }
-  const dataArr = new Uint8Array(analyserNode ? analyserNode.frequencyBinCount : 64);
   function visTick() {
     visInterval = requestAnimationFrame(visTick);
     if (!isPlaying) {
       bars.forEach(b => b.style.height = '2px');
       return;
     }
-    if (analyserNode) {
-      analyserNode.getByteFrequencyData(dataArr);
-      const step = Math.floor(dataArr.length / numBars);
-      bars.forEach((b, i) => {
-        let sum = 0;
-        for (let j = 0; j < step; j++) sum += dataArr[i * step + j] || 0;
-        const avg = sum / step;
-        const h = 4 + (avg / 255) * 56;
-        b.style.height = h + 'px';
-      });
-    } else {
-      bars.forEach((b, i) => {
-        const h = 4 + Math.sin(Date.now() / 300 + i * 0.5) * 20 + Math.random() * 15;
-        b.style.height = Math.max(2, h) + 'px';
-      });
-    }
+    bars.forEach((b, i) => {
+      const h = 4 + Math.sin(Date.now() / 300 + i * 0.5) * 20 + Math.random() * 15;
+      b.style.height = Math.max(2, h) + 'px';
+    });
   }
   visTick();
 }
@@ -2115,8 +2074,20 @@ async function handleFiles(files) {
     }
   }
 
+  // Collect image files for cover art matching
+  const IMG_EXT = /\.(jpg|jpeg|png|webp|bmp|gif)$/i;
+  const imgFiles = files.filter(f => IMG_EXT.test(f.name));
+  const imgMap = {};
+  for (const img of imgFiles) {
+    const baseName = img.name.replace(/\.[^/.]+$/, '').toLowerCase();
+    imgMap[baseName] = img;
+  }
+
   const valid = files.filter(f => AUDIO_EXT.test(f.name)||VIDEO_EXT.test(f.name)||f.type.startsWith('audio/')||f.type.startsWith('video/'));
-  if (!valid.length) { if (Object.keys(lrcMap).length) toast('📄 Fichiers .lrc chargés'); else return; }
+  if (!valid.length) {
+    if (Object.keys(lrcMap).length) toast('📄 Fichiers .lrc chargés');
+    else return;
+  }
   showProc(`Importation de ${valid.length} fichier${valid.length>1?'s':''}…`,'');
   let done=0;
   for (const f of valid) {
@@ -2124,12 +2095,11 @@ async function handleFiles(files) {
       setProc(`${f.name}`, done/valid.length*100);
       let meta;
       if (VIDEO_EXT.test(f.name)||f.type.startsWith('video/')) meta = await importVideo(f);
-      else meta = await importAudio(f);
+      else meta = await importAudio(f, imgMap);
       // Match LRC
       const baseName = f.name.replace(/\.[^/.]+$/, '').toLowerCase();
       if (lrcMap[baseName] && meta) {
         lrcData[meta.id] = lrcMap[baseName];
-        // Persist LRC
         try { await dbPut(STORE_META, { key:'lrc_'+meta.id, data:lrcMap[baseName] }); } catch(e) {}
       }
     } catch(e) { console.error(e); }
@@ -2141,16 +2111,26 @@ async function handleFiles(files) {
   renderAll();
 }
 
-async function importAudio(file) {
+async function importAudio(file, imgMap) {
   const tags = await readTags(file, file);
   const id = 'tr_' + Date.now() + '_' + Math.random().toString(36).slice(2);
   const duration = await getAudioDuration(URL.createObjectURL(file));
   const audioBlob = file;
 
-  // Generate art blob: try tags, then generate from title initials
+  // Art: try embedded tags first, then matching image file in the batch
   let artBlob = tags.artBlob || null;
-  if (!artBlob) {
-    artBlob = await generateArtBlob(tags.title || cleanName(file.name));
+  if (!artBlob && imgMap) {
+    const baseName = file.name.replace(/\.[^/.]+$/, '').toLowerCase();
+    let matched = imgMap[baseName]
+      || imgMap['cover'] || imgMap['folder']
+      || imgMap['artwork'] || imgMap['front'];
+    if (!matched) {
+      const vals = Object.values(imgMap);
+      if (vals.length) matched = vals[0];
+    }
+    if (matched) {
+      artBlob = new Blob([await matched.arrayBuffer()], { type: matched.type || 'image/jpeg' });
+    }
   }
 
   const title = tags.title || cleanName(file.name);
@@ -2173,28 +2153,6 @@ async function importAudio(file) {
   };
   await dbPut(STORE_TRACKS, { ...meta, audioBlob, artBlob });
   return meta;
-}
-
-async function generateArtBlob(title) {
-  try {
-    const c = document.createElement('canvas');
-    c.width = 512; c.height = 512;
-    const ctx = c.getContext('2d');
-    const colors = ['#fc3c44','#5856d6','#30d158','#ff9f0a','#64d2ff','#ff375f','#bf5af2','#ff6482'];
-    const bg = colors[Math.floor(Math.random() * colors.length)];
-    const grad = ctx.createLinearGradient(0,0,512,512);
-    grad.addColorStop(0, bg);
-    grad.addColorStop(1, '#1a1a2e');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0,0,512,512);
-    const initials = title.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('');
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.font = 'bold 200px -apple-system,sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(initials || '♪', 256, 266);
-    return new Promise(res => c.toBlob(b => res(b), 'image/jpeg', 0.85));
-  } catch(e) { return null; }
 }
 
 async function importVideo(file) {
@@ -3037,10 +2995,16 @@ function setSleep(min) {
   if(min===0){$('sleep-badge').classList.remove('on');toast('Minuteur désactivé');return;}
   sleepEnd=Date.now()+min*60000;
   sleepTimer=setTimeout(()=>{
-    audio.pause(); isPlaying=false;
+    // Hard stop: pause + clear source to prevent looping on iOS
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
+    isPlaying=false;
+    _userPaused=true;
     updatePlayIcons(); updateArtState();
+    if('mediaSession' in navigator) navigator.mediaSession.playbackState='paused';
     $('sleep-badge').classList.remove('on');
-    toast('😴 Musique pausée');
+    toast('😴 Musique arrêtée');
   }, min*60000);
   $('sleep-badge').classList.add('on');
   toast(`⏰ ${min} min`);
@@ -3309,26 +3273,9 @@ function renderSettings() {
 }
 
 function enableSpatialAudio() {
-  if (!audioCtx || !gainNode) return;
-  try {
-    // Apply spatial EQ curve: slightly boost lows and highs, narrow mids
-    const spatialEqCurve = [4, 3, 1, 0, -2, -1, 1, 3, 4, 5];
-    spatialEqCurve.forEach((v, i) => {
-      if (eqFilters[i]) {
-        eqFilters[i].gain.setValueAtTime(eqEnabled ? v : 0, audioCtx.currentTime);
-      }
-    });
-    toast('🎧 Son spatial activé');
-  } catch(e) { toast('Son spatial non disponible'); }
+  toast('🎧 Son spatial — simulé (disponible avec égaliseur actif)');
 }
 function disableSpatialAudio() {
-  if (!audioCtx) return;
-  // Restore normal EQ values
-  eqVals.forEach((v, i) => {
-    if (eqFilters[i]) {
-      eqFilters[i].gain.setValueAtTime(eqEnabled ? v : 0, audioCtx.currentTime);
-    }
-  });
   toast('Son spatial désactivé');
 }
 
