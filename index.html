@@ -1534,6 +1534,7 @@ let repeatMode = 1;    // 0=off 1=all 2=one
 let isCrossfade = false;
 let isAdvancing = false;
 let _userPaused = false;
+let _sleepStopped = false;
 let playSpeed = 1;
 let eqEnabled = true;
 let eqVals = [0,0,0,0,0,0,0,0,0,0];
@@ -1862,8 +1863,7 @@ function openAirPlay() {
 
 // ─── AUDIO EVENTS ──────────────────────────────────────────
 audio.addEventListener('ended', () => {
-  console.log('Audio ended, repeatMode=' + repeatMode + ' queueIdx=' + queueIdx + '/' + queue.length);
-  // Small delay to let any pending play() settle
+  if (_sleepStopped || _userPaused) { _sleepStopped = false; return; }
   setTimeout(()=>nextTrack(), 50);
 });
 
@@ -1879,8 +1879,7 @@ audio.addEventListener('timeupdate', () => {
 });
 
 audio.addEventListener('play', () => {
-  // If user had paused, iOS may auto-resume — block it immediately
-  if (_userPaused) { audio.pause(); return; }
+  if (_userPaused || _sleepStopped) { audio.pause(); _sleepStopped = false; return; }
   isPlaying=true;
   updatePlayIcons();
   updateArtState();
@@ -2217,24 +2216,147 @@ function encodeWAV(buf) {
 // ─── TAG READER ────────────────────────────────────────────
 async function readTags(file, fullFile) {
   return new Promise(async res => {
-    // First pass: read header to find tag size, then read full tag if needed
-    const headSize = 512 * 1024;
-    const head = await readSlice(file, 0, headSize);
-    const bytes = new Uint8Array(head);
-    let totalTagSize = 0;
-    if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) {
-      totalTagSize = ((bytes[6] & 0x7f) << 21) | ((bytes[7] & 0x7f) << 14) | ((bytes[8] & 0x7f) << 7) | (bytes[9] & 0x7f);
-    }
-    // Read full tag if it's larger than our initial read
-    let buf;
-    if (totalTagSize + 10 > headSize && fullFile) {
-      buf = await readSlice(file, 0, Math.min(totalTagSize + 10, file.size));
-    } else {
-      buf = head;
-    }
-    try { res(parseID3(buf)); }
-    catch { res({title:null,artist:null,album:null,artBlob:null}); }
+    try {
+      const maxRead = Math.min(file.size, 2 * 1024 * 1024); // Read up to 2MB
+      const head = await readSlice(file, 0, maxRead);
+      const bytes = new Uint8Array(head);
+
+      // Detect format: ID3 (MP3) or MP4 (M4A/AAC/Apple)
+      if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) {
+        // ID3v2
+        let totalTagSize = ((bytes[6] & 0x7f) << 21) | ((bytes[7] & 0x7f) << 14) | ((bytes[8] & 0x7f) << 7) | (bytes[9] & 0x7f);
+        let buf = head;
+        if (totalTagSize + 10 > maxRead && fullFile) {
+          buf = await readSlice(file, 0, Math.min(totalTagSize + 10, file.size));
+        }
+        res(parseID3(buf));
+      } else {
+        // Try MP4/M4A
+        res(parseMP4(bytes));
+      }
+    } catch(e) { res({title:null,artist:null,album:null,artBlob:null}); }
   });
+}
+
+function parseMP4(bytes) {
+  const res = {title:null,artist:null,album:null,artBlob:null};
+  let pos = 0;
+
+  function readBox(start) {
+    if (start + 8 > bytes.length) return null;
+    let size = (bytes[start] << 24) | (bytes[start+1] << 16) | (bytes[start+2] << 8) | bytes[start+3];
+    const type = String.fromCharCode(bytes[start+4], bytes[start+5], bytes[start+6], bytes[start+7]);
+    if (size === 0) size = bytes.length - start; // extended to end of file
+    if (size < 8 || start + size > bytes.length) return null;
+    return { size, type, data: bytes.slice(start + 8, start + size), start };
+  }
+
+  function findBox(data, targetType, startOff) {
+    let i = startOff || 0;
+    while (i + 8 <= data.length) {
+      const sz = (data[i] << 24) | (data[i+1] << 16) | (data[i+2] << 8) | data[i+3];
+      if (sz < 8) break;
+      const tp = String.fromCharCode(data[i+4], data[i+5], data[i+6], data[i+7]);
+      if (tp === targetType) return { size: sz, type: tp, data: data.slice(i + 8, i + sz), start: i };
+      i += sz;
+    }
+    return null;
+  }
+
+  function readString(boxData) {
+    // data box: type(4) + locale(4) + string
+    if (boxData.length < 8) return null;
+    const type = (boxData[0] << 24) | (boxData[1] << 16) | (boxData[2] << 8) | boxData[3];
+    let strStart = 8;
+    // Skip locale
+    if (type === 1) {
+      // UTF-8 text
+      let r = '';
+      for (let i = strStart; i < boxData.length; i++) {
+        if (boxData[i] === 0) break;
+        r += String.fromCharCode(boxData[i]);
+      }
+      return r;
+    }
+    return null;
+  }
+
+  function readImage(boxData) {
+    if (boxData.length < 12) return null;
+    const type = (boxData[0] << 24) | (boxData[1] << 16) | (boxData[2] << 8) | boxData[3];
+    if (type !== 13 && type !== 14) return null; // 13 = JPEG, 14 = PNG
+    const imgData = boxData.slice(8);
+    if (imgData.length < 50) return null;
+    const mime = type === 13 ? 'image/jpeg' : 'image/png';
+    return new Blob([imgData], { type: mime });
+  }
+
+  // Walk box hierarchy to find moov > udta > meta > ilst
+  while (pos + 8 <= bytes.length) {
+    const box = readBox(pos);
+    if (!box) break;
+    if (box.type === 'moov') {
+      let p = 0;
+      while (p + 8 <= box.data.length) {
+        const mBox = readBoxAt(box.data, p);
+        if (!mBox) break;
+        if (mBox.type === 'udta') {
+          let u = 0;
+          while (u + 8 <= mBox.data.length) {
+            const uBox = readBoxAt(mBox.data, u);
+            if (!uBox) break;
+            if (uBox.type === 'meta') {
+              // meta box: skip 4 bytes of version/flags
+              let m = 4;
+              while (m + 8 <= uBox.data.length) {
+                const iBox = readBoxAt(uBox.data, m);
+                if (!iBox) break;
+                if (iBox.type === 'ilst') {
+                  // Iterate through ilst items
+                  let il = 0;
+                  while (il + 8 <= iBox.data.length) {
+                    const item = readBoxAt(iBox.data, il);
+                    if (!item) break;
+                    const itemKey = item.type;
+                    // Each item contains a 'data' box
+                    let dPos = 0;
+                    while (dPos + 8 <= item.data.length) {
+                      const dBox = readBoxAt(item.data, dPos);
+                      if (!dBox) break;
+                      if (dBox.type === 'data') {
+                        if (itemKey === '©nam' && !res.title) res.title = readString(dBox.data);
+                        else if (itemKey === '©ART' && !res.artist) res.artist = readString(dBox.data);
+                        else if (itemKey === '©alb' && !res.album) res.album = readString(dBox.data);
+                        else if (itemKey === 'aART' && !res.artist) res.artist = readString(dBox.data);
+                        else if (itemKey === 'covr' && !res.artBlob) res.artBlob = readImage(dBox.data);
+                      }
+                      dPos += dBox.size + 8;
+                    }
+                    il += item.size + 8;
+                  }
+                }
+                m += iBox.size + 8;
+              }
+            }
+            u += uBox.size + 8;
+          }
+        }
+        p += mBox.size + 8;
+      }
+    }
+    pos += box.size;
+  }
+
+  return res;
+}
+
+function readBoxAt(data, start) {
+  if (start + 8 > data.length) return null;
+  let size = (data[start] << 24) | (data[start+1] << 16) | (data[start+2] << 8) | data[start+3];
+  const type = String.fromCharCode(data[start+4], data[start+5], data[start+6], data[start+7]);
+  if (size === 0) size = data.length - start;
+  if (size < 8 || start + size > data.length) return null;
+  return { size, type, data: data.slice(start + 8, start + size), start };
 }
 
 function readSlice(file, start, end) {
@@ -2864,8 +2986,33 @@ function openTrackCtx(trackId, event) {
     {label:t.favorite?'💔 Retirer des favoris':'❤️ Ajouter aux favoris',action:()=>toggleFav(trackId)},
     {label:'📋 Ajouter à une playlist',action:()=>openAddToPlaylistModal(trackId)},
     'sep',
+    {label:'🖼️ Changer la pochette',action:()=>{closeCtx();changeTrackArt(trackId);}},
     {label:'🗑️ Supprimer',cls:'red',action:()=>removeTrack(trackId)}
   ]);
+}
+
+function changeTrackArt(trackId) {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*,.jpg,.jpeg,.png,.webp';
+  inp.onchange = async () => {
+    const file = inp.files[0];
+    if (!file) return;
+    const blob = new Blob([await file.arrayBuffer()], { type: file.type || 'image/jpeg' });
+    const rec = await dbGet(STORE_TRACKS, trackId);
+    if (rec) {
+      rec.artBlob = blob;
+      await dbPut(STORE_TRACKS, rec);
+      // Reload art URL
+      if (blobURLs[trackId]?.artURL) URL.revokeObjectURL(blobURLs[trackId].artURL);
+      blobURLs[trackId] = blobURLs[trackId] || {};
+      blobURLs[trackId].artURL = URL.createObjectURL(blob);
+      renderAll();
+      if (currentIdx >= 0 && library[currentIdx]?.id === trackId) updatePlayerUI();
+      toast('✅ Pochette mise à jour');
+    }
+  };
+  inp.click();
 }
 
 function playNext(trackId) {
@@ -2935,29 +3082,33 @@ $('eq-toggle').addEventListener('change',e=>{
 });
 
 // ─── SEARCH ────────────────────────────────────────────────
+function renderSearchSuggestions() {
+  const el=$('search-results');
+  const recent = [...library].sort((a,b)=>b.dateAdded-a.dateAdded).slice(0,5);
+  const artists = [...new Set(library.map(t=>t.artist).filter(Boolean))].slice(0,6);
+  if (!library.length) {
+    el.innerHTML=`<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><h3>Recherche</h3><p>Importe de la musique pour voir des suggestions</p></div>`;
+    return;
+  }
+  el.innerHTML=`
+    ${recent.length ? `<div style="padding:12px 20px 6px;font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Récemment importés</div>
+    <div class="tlist" style="padding:0 12px">${recent.map((t,i)=>trackItemHTML(t,i+1,false)).join('')}</div>` : ''}
+    ${artists.length ? `<div style="padding:12px 20px 6px;font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Artistes</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 16px">
+      ${artists.map(s => `<button class="eq-preset" onclick="quickSearch('${esc(s)}')">${esc(s)}</button>`).join('')}
+    </div>` : ''}
+    <div style="padding:0 20px 6px;font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Parcourir</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 20px">
+      <button class="eq-preset" onclick="nav('library')">🎵 Bibliothèque</button>
+      <button class="eq-preset" onclick="nav('albums')">💿 Albums</button>
+      <button class="eq-preset" onclick="nav('artists')">🎤 Artistes</button>
+    </div>`;
+}
+
 $('search-inp').addEventListener('input', e=>{
   const q=e.target.value.toLowerCase().trim();
   const el=$('search-results');
-  if(!q){
-    // Show real track suggestions
-    const recent = [...library].sort((a,b)=>b.dateAdded-a.dateAdded).slice(0,5);
-    const artists = [...new Set(library.map(t=>t.artist).filter(Boolean))].slice(0,6);
-    el.innerHTML=`
-      ${recent.length ? `<div style="padding:12px 20px 6px;font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Récemment importés</div>
-      <div class="tlist" style="padding:0 12px">${recent.map((t,i)=>trackItemHTML(t,i+1,false)).join('')}</div>` : ''}
-      ${artists.length ? `<div style="padding:12px 20px 6px;font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Artistes</div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 16px">
-        ${artists.map(s => `<button class="eq-preset" onclick="quickSearch('${esc(s)}')">${esc(s)}</button>`).join('')}
-      </div>` : ''}
-      ${library.length ? `<div style="padding:0 20px 6px;font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Parcourir</div>
-      <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 20px">
-        <button class="eq-preset" onclick="nav('library')">🎵 Bibliothèque</button>
-        <button class="eq-preset" onclick="nav('albums')">💿 Albums</button>
-        <button class="eq-preset" onclick="nav('artists')">🎤 Artistes</button>
-      </div>` : `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><h3>Recherche</h3><p>Importe de la musique pour voir des suggestions</p></div>`}
-    `;
-    return;
-  }
+  if(!q){ renderSearchSuggestions(); return; }
   const res=library.filter(t=>t.title.toLowerCase().includes(q)||t.artist.toLowerCase().includes(q)||t.album.toLowerCase().includes(q));
   el.innerHTML=res.length?res.map((t,i)=>trackItemHTML(t,null,false)).join(''):`<div class="empty"><h3>Aucun résultat</h3><p>Essaie autre chose</p></div>`;
 });
@@ -2996,7 +3147,7 @@ function setSleep(min) {
   if(min===0){$('sleep-badge').classList.remove('on');toast('Minuteur désactivé');return;}
   sleepEnd=Date.now()+min*60000;
   sleepTimer=setTimeout(()=>{
-    // Hard stop: pause + clear source to prevent looping on iOS
+    _sleepStopped = true;
     audio.pause();
     audio.removeAttribute('src');
     audio.load();
@@ -3032,7 +3183,7 @@ function nav(viewName) {
   currentView=viewName;
   if(viewName==='equalizer') renderEQ();
   if(viewName==='radio') renderRadio();
-  if(viewName==='search') setTimeout(()=>$('search-inp').focus(),100);
+  if(viewName==='search'){ setTimeout(()=>$('search-inp').focus(),100); renderSearchSuggestions(); }
   if(viewName==='settings') renderSettings();
 }
 
@@ -3317,11 +3468,12 @@ document.addEventListener('visibilitychange', () => {
     if (isPlaying) saveSession();
   } else {
     // App returning to foreground
-    // If user had paused, iOS may auto-resume audio — force pause it
-    if (_userPaused && !audio.paused) {
+    // If user had paused or sleep stopped, iOS may auto-resume audio — force pause it
+    if ((_userPaused || _sleepStopped) && !audio.paused) {
       audio.pause();
       isPlaying = false;
       updatePlayIcons();
+      _sleepStopped = false;
     }
     // If music was playing and AudioContext was suspended, resume it
     else if (isPlaying && audioCtx && audioCtx.state === 'suspended') {
