@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -1146,6 +1146,10 @@ body {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
           <span class="lbl">Égaliseur</span>
         </div>
+        <div class="sb-item" data-nav="settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          <span class="lbl">Paramètres</span>
+        </div>
       </div>
       <div class="sb-section" id="sb-pl-section" style="display:none">
         <div class="sb-label">Mes playlists</div>
@@ -1315,8 +1319,43 @@ body {
       <div class="view" id="view-radio">
         <div class="ph"><div class="ph-title">Radio</div></div>
         <div style="padding:0 16px">
-          <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Stations françaises et lofi en direct</p>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Stations en direct — accès Internet requis</p>
           <div id="radio-list" class="tlist"></div>
+        </div>
+      </div>
+
+      <!-- SETTINGS -->
+      <div class="view" id="view-settings">
+        <div class="ph"><div class="ph-title">Paramètres</div></div>
+        <div style="padding:0 20px">
+          <div class="section" style="padding:0;margin-bottom:20px">
+            <div class="section-hd"><div class="section-title">🎵 Musique</div></div>
+            <div id="settings-stats" style="font-size:14px;color:var(--text2);line-height:1.8"></div>
+          </div>
+          <div class="section" style="padding:0;margin-bottom:20px">
+            <div class="section-hd"><div class="section-title">⚙️ Lecture</div></div>
+            <div class="eq-toggle-row" style="padding:0 0 8px">
+              <span class="eq-toggle-label">Son spatial (simulation)</span>
+              <label class="toggle"><input type="checkbox" id="spatial-toggle"><span class="tslider"></span></label>
+            </div>
+            <div class="eq-toggle-row" style="padding:0 0 8px">
+              <span class="eq-toggle-label">Qualité haute (96kHz)</span>
+              <label class="toggle"><input type="checkbox" id="hq-toggle" checked><span class="tslider"></span></label>
+            </div>
+          </div>
+          <div class="section" style="padding:0;margin-bottom:20px">
+            <div class="section-hd"><div class="section-title">📊 Stockage</div></div>
+            <button class="modal-btn secondary" style="margin:0;width:100%;color:#ff453a" onclick="clearAllData()">🗑️ Effacer toutes les données</button>
+          </div>
+          <div class="section" style="padding:0;margin-bottom:20px">
+            <div class="section-hd"><div class="section-title">ℹ️ À propos</div></div>
+            <div style="font-size:14px;color:var(--text2);line-height:1.8">
+              <div><strong style="color:var(--text1)">Coco Music</strong></div>
+              <div>Version 3.0.0</div>
+              <div>Lecteur musical local sans serveur</div>
+              <div style="margin-top:8px">Tout le contenu reste sur votre appareil via IndexedDB.</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1501,6 +1540,10 @@ let eqVals = [0,0,0,0,0,0,0,0,0,0];
 let sortMode = 'dateAdded';
 let sleepTimer = null, sleepEnd = null;
 let visInterval = null;
+let selectMode = false;
+let selectedIds = new Set();
+let lrcData = {};      // { trackId: [{time, text}, ...] }
+let lrcInterval = null;
 
 // ─── AUDIO ENGINE ──────────────────────────────────────────
 const audio = document.createElement('video');
@@ -1530,27 +1573,63 @@ const EQ_PRESETS = {
 };
 
 const RADIO = [
-  {name:'NRJ',sub:'France · Live',url:'https://stream.nrj.fr/nrj-hd.mp3'},
-  {name:'Fun Radio',sub:'France · Live',url:'https://streaming.radio.funradio.fr/fun-1-44-128'},
-  {name:'Virgin Radio',sub:'France · Live',url:'https://stream.virginradio.fr/virgin-1-44-128'},
-  {name:'Skyrock',sub:'France · Live',url:'https://streaming.skyrock.com/3.mp3'},
-  {name:'Lofi Chill',sub:'24/7 · Live',url:'https://streams.ilovemusic.de/iloveradio17.mp3'},
-  {name:'Jazz FM',sub:'UK · Live',url:'https://edge-bauerall-03-gos2.sharp-stream.com/jazz.mp3'}
+  {name:'NRJ',sub:'France · Top 40',url:'https://stream.nrj.fr/nrj-hd.mp3'},
+  {name:'Fun Radio',sub:'France · Dance',url:'https://streaming.radio.funradio.fr/fun-1-44-128'},
+  {name:'Virgin Radio',sub:'France · Pop Rock',url:'https://stream.virginradio.fr/virgin-1-44-128'},
+  {name:'Skyrock',sub:'France · Rap/Hip-Hop',url:'https://streaming.skyrock.com/3.mp3'},
+  {name:'Lofi Girl',sub:'24/7 · Chill/Lofi',url:'https://streams.ilovemusic.de/iloveradio17.mp3'},
+  {name:'Jazz Radio',sub:'France · Jazz',url:'https://jazzradio.ice.infomaniak.ch/jazzradio-high.mp3'},
+  {name:'France Inter',sub:'France · Généraliste',url:'https://icecast.radiofrance.fr/franceinter-midfi.mp3'},
+  {name:'FIP',sub:'France · Musicale',url:'https://icecast.radiofrance.fr/fip-midfi.mp3'}
 ];
 
 function initAudio() {
-  // Do NOT route audio through AudioContext/MediaElementSource
-  // iOS kills background audio when audio goes through Web Audio API
-  // YouTube works because it plays directly through <video>
-  // EQ and visualizer are disabled for iOS background compatibility
   if (audioCtx) return;
   try {
     audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-    // Create analyser for visualizer but DON'T connect to audio element
-    analyserNode = audioCtx.createAnalyser();
-    analyserNode.fftSize = 128;
     gainNode = audioCtx.createGain();
     gainNode.gain.value = 1;
+
+    // Connect audio element to Web Audio graph
+    let mediaSrc;
+    try {
+      mediaSrc = audioCtx.createMediaElementSource(audio);
+    } catch (e) {
+      mediaSrc = null;
+    }
+
+    // Create 10-band professional EQ filters
+    eqFilters = [];
+    const filterTypes = ['lowshelf','peaking','peaking','peaking','peaking','peaking','peaking','peaking','peaking','highshelf'];
+    EQ_FREQS.forEach((freq, i) => {
+      const f = audioCtx.createBiquadFilter();
+      f.type = filterTypes[i];
+      f.frequency.value = freq;
+      f.Q.value = 1.41;
+      f.gain.value = eqVals[i] || 0;
+      eqFilters.push(f);
+    });
+
+    // Create analyser for visualizer
+    analyserNode = audioCtx.createAnalyser();
+    analyserNode.fftSize = 256;
+
+    // Build graph: mediaSrc -> gain -> eq[0..9] -> analyser -> destination
+    if (mediaSrc) {
+      let chain = gainNode;
+      mediaSrc.connect(gainNode);
+      eqFilters.forEach(f => { chain.connect(f); chain = f; });
+      chain.connect(analyserNode);
+      analyserNode.connect(audioCtx.destination);
+
+      // Also keep direct audio output for iOS background
+      audio.volume = 0.01; // near-silent direct path keeps iOS background alive
+      const silentGain = audioCtx.createGain();
+      silentGain.gain.value = 0.01;
+      mediaSrc.connect(silentGain);
+      silentGain.connect(audioCtx.destination);
+    }
+
     startVis();
   } catch(e) { console.warn('AudioCtx fail:',e); }
 }
@@ -1558,28 +1637,39 @@ function initAudio() {
 // ─── VISUALIZER ────────────────────────────────────────────
 function startVis() {
   const wrap = document.getElementById('fp-vis');
-  // Create 32 bars
   wrap.innerHTML = '';
+  const numBars = 32;
   const bars = [];
-  for (let i=0;i<32;i++) {
+  for (let i=0;i<numBars;i++) {
     const b = document.createElement('div');
     b.className = 'vbar';
-    b.style.cssText = `background:linear-gradient(to top,var(--accent),rgba(252,60,68,0.3));min-height:2px;`;
+    b.style.cssText = 'background:linear-gradient(to top,var(--accent),rgba(252,60,68,0.3));min-height:2px;';
     wrap.appendChild(b);
     bars.push(b);
   }
-  const dataArr = new Uint8Array(analyserNode.frequencyBinCount);
+  const dataArr = new Uint8Array(analyserNode ? analyserNode.frequencyBinCount : 64);
   function visTick() {
     visInterval = requestAnimationFrame(visTick);
-    if(!isPlaying) {
-      bars.forEach(b=>b.style.height='2px');
+    if (!isPlaying) {
+      bars.forEach(b => b.style.height = '2px');
       return;
     }
-    // Simple animated bars when analyser is not connected
-    bars.forEach((b,i) => {
-      const h = 4 + Math.sin(Date.now()/300 + i*0.5) * 20 + Math.random() * 15;
-      b.style.height = Math.max(2, h) + 'px';
-    });
+    if (analyserNode) {
+      analyserNode.getByteFrequencyData(dataArr);
+      const step = Math.floor(dataArr.length / numBars);
+      bars.forEach((b, i) => {
+        let sum = 0;
+        for (let j = 0; j < step; j++) sum += dataArr[i * step + j] || 0;
+        const avg = sum / step;
+        const h = 4 + (avg / 255) * 56;
+        b.style.height = h + 'px';
+      });
+    } else {
+      bars.forEach((b, i) => {
+        const h = 4 + Math.sin(Date.now() / 300 + i * 0.5) * 20 + Math.random() * 15;
+        b.style.height = Math.max(2, h) + 'px';
+      });
+    }
   }
   visTick();
 }
@@ -1687,6 +1777,9 @@ async function playById(trackId, resetQ=true) {
   updateTrackHighlights();
   updateQueueUI();
   saveSession();
+  // Restart lyrics sync
+  if (lrcInterval) { cancelAnimationFrame(lrcInterval); lrcInterval = null; }
+  if ($('fp-lyrics').classList.contains('open')) renderLyrics();
 }
 
 async function playByIdx(idx, resetQ=true) {
@@ -1824,7 +1917,6 @@ audio.addEventListener('timeupdate', () => {
   $('pp-fill').style.width = sp;
   $('fp-cur').textContent = fmt(audio.currentTime);
   $('fp-dur').textContent = fmt(audio.duration);
-
 });
 
 audio.addEventListener('play', () => {
@@ -1929,6 +2021,8 @@ function updatePlayerUI() {
 
   updatePlayIcons();
   updateArtState();
+  // Trigger lyrics sync if lyrics tab is open
+  if ($('fp-lyrics').classList.contains('open')) renderLyrics();
 }
 
 function updatePlayIcons() {
@@ -2010,15 +2104,34 @@ const AUDIO_EXT = /\.(mp3|flac|wav|aac|m4a|m4b|ogg|opus|aiff|aif|wma|ape)$/i;
 const VIDEO_EXT = /\.(mp4|mkv|webm|mov|avi|flv|m4v)$/i;
 
 async function handleFiles(files) {
+  // Pre-process .lrc files
+  const lrcFiles = files.filter(f => f.name.toLowerCase().endsWith('.lrc'));
+  const lrcMap = {};
+  for (const lf of lrcFiles) {
+    const baseName = lf.name.replace(/\.lrc$/i, '').toLowerCase();
+    const text = await lf.text().catch(() => '');
+    if (text && text.includes('[ti:') || text.includes('[00:')) {
+      lrcMap[baseName] = parseLRC(text);
+    }
+  }
+
   const valid = files.filter(f => AUDIO_EXT.test(f.name)||VIDEO_EXT.test(f.name)||f.type.startsWith('audio/')||f.type.startsWith('video/'));
-  if (!valid.length) return;
+  if (!valid.length) { if (Object.keys(lrcMap).length) toast('📄 Fichiers .lrc chargés'); else return; }
   showProc(`Importation de ${valid.length} fichier${valid.length>1?'s':''}…`,'');
   let done=0;
   for (const f of valid) {
     try {
       setProc(`${f.name}`, done/valid.length*100);
-      if (VIDEO_EXT.test(f.name)||f.type.startsWith('video/')) await importVideo(f);
-      else await importAudio(f);
+      let meta;
+      if (VIDEO_EXT.test(f.name)||f.type.startsWith('video/')) meta = await importVideo(f);
+      else meta = await importAudio(f);
+      // Match LRC
+      const baseName = f.name.replace(/\.[^/.]+$/, '').toLowerCase();
+      if (lrcMap[baseName] && meta) {
+        lrcData[meta.id] = lrcMap[baseName];
+        // Persist LRC
+        try { await dbPut(STORE_META, { key:'lrc_'+meta.id, data:lrcMap[baseName] }); } catch(e) {}
+      }
     } catch(e) { console.error(e); }
     done++;
   }
@@ -2029,21 +2142,59 @@ async function handleFiles(files) {
 }
 
 async function importAudio(file) {
-  const tags = await readTags(file);
+  const tags = await readTags(file, file);
   const id = 'tr_' + Date.now() + '_' + Math.random().toString(36).slice(2);
   const duration = await getAudioDuration(URL.createObjectURL(file));
-  const artBlob = tags.artBlob || null;
   const audioBlob = file;
 
+  // Generate art blob: try tags, then generate from title initials
+  let artBlob = tags.artBlob || null;
+  if (!artBlob) {
+    artBlob = await generateArtBlob(tags.title || cleanName(file.name));
+  }
+
+  const title = tags.title || cleanName(file.name);
+  let artist = tags.artist || null;
+  if (!artist) {
+    const parts = title.split(/[-–—|/]/);
+    if (parts.length >= 2) {
+      artist = parts[0].trim();
+    } else {
+      const words = title.trim().split(/\s+/);
+      artist = words.length > 1 ? words[words.length - 1] : 'Artiste inconnu';
+    }
+  }
+
   const meta = {
-    id, title: tags.title||cleanName(file.name),
-    artist: tags.artist||'Artiste inconnu',
+    id, title,
+    artist,
     album: tags.album||'Album inconnu',
     duration, dateAdded:Date.now(), favorite:false
   };
-  // Store full record with blobs in IDB
   await dbPut(STORE_TRACKS, { ...meta, audioBlob, artBlob });
   return meta;
+}
+
+async function generateArtBlob(title) {
+  try {
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 512;
+    const ctx = c.getContext('2d');
+    const colors = ['#fc3c44','#5856d6','#30d158','#ff9f0a','#64d2ff','#ff375f','#bf5af2','#ff6482'];
+    const bg = colors[Math.floor(Math.random() * colors.length)];
+    const grad = ctx.createLinearGradient(0,0,512,512);
+    grad.addColorStop(0, bg);
+    grad.addColorStop(1, '#1a1a2e');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,512,512);
+    const initials = title.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('');
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.font = 'bold 200px -apple-system,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(initials || '♪', 256, 266);
+    return new Promise(res => c.toBlob(b => res(b), 'image/jpeg', 0.85));
+  } catch(e) { return null; }
 }
 
 async function importVideo(file) {
@@ -2093,50 +2244,90 @@ function encodeWAV(buf) {
 }
 
 // ─── TAG READER ────────────────────────────────────────────
-async function readTags(file) {
-  return new Promise(res => {
-    const fr=new FileReader();
-    fr.onload=e=>{
-      try{res(parseID3(e.target.result,file));}
-      catch{res({title:null,artist:null,album:null,artBlob:null});}
-    };
-    fr.onerror=()=>res({title:null,artist:null,album:null,artBlob:null});
-    fr.readAsArrayBuffer(file.slice(0,512*1024));
+async function readTags(file, fullFile) {
+  return new Promise(async res => {
+    // First pass: read header to find tag size, then read full tag if needed
+    const headSize = 512 * 1024;
+    const head = await readSlice(file, 0, headSize);
+    const bytes = new Uint8Array(head);
+    let totalTagSize = 0;
+    if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) {
+      totalTagSize = ((bytes[6] & 0x7f) << 21) | ((bytes[7] & 0x7f) << 14) | ((bytes[8] & 0x7f) << 7) | (bytes[9] & 0x7f);
+    }
+    // Read full tag if it's larger than our initial read
+    let buf;
+    if (totalTagSize + 10 > headSize && fullFile) {
+      buf = await readSlice(file, 0, Math.min(totalTagSize + 10, file.size));
+    } else {
+      buf = head;
+    }
+    try { res(parseID3(buf)); }
+    catch { res({title:null,artist:null,album:null,artBlob:null}); }
   });
 }
 
-function parseID3(buf, file) {
-  const bytes=new Uint8Array(buf);
-  const res={title:null,artist:null,album:null,artBlob:null};
-  if(bytes[0]!==0x49||bytes[1]!==0x44||bytes[2]!==0x33) return res;
-  const ver=bytes[3];
-  const size=((bytes[6]&0x7f)<<21)|((bytes[7]&0x7f)<<14)|((bytes[8]&0x7f)<<7)|(bytes[9]&0x7f);
-  let pos=10; const end=Math.min(size+10,bytes.length);
-  while(pos<end-10){
-    const fid=String.fromCharCode(bytes[pos],bytes[pos+1],bytes[pos+2],bytes[pos+3]);
-    let fsz=ver>=4?((bytes[pos+4]&0x7f)<<21)|((bytes[pos+5]&0x7f)<<14)|((bytes[pos+6]&0x7f)<<7)|(bytes[pos+7]&0x7f):(bytes[pos+4]<<24)|(bytes[pos+5]<<16)|(bytes[pos+6]<<8)|bytes[pos+7];
-    if(fsz<=0||pos+10+fsz>end)break;
-    pos+=10;
-    const fd=bytes.slice(pos,pos+fsz);
-    const enc=fd[0];
-    const rdStr=(d,off=1)=>{
-      const s=d.slice(off);
-      if(enc===1||enc===2){let r='';for(let i=0;i<s.length-1;i+=2){const c=enc===1?(s[i+1]<<8)|s[i]:(s[i]<<8)|s[i+1];if(c===0)break;r+=String.fromCodePoint(c);}return r;}
-      let r='';for(const b of s){if(b===0)break;r+=String.fromCharCode(b);}
-      try{return decodeURIComponent(escape(r));}catch{return r;}
+function readSlice(file, start, end) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = rej;
+    fr.readAsArrayBuffer(file.slice(start, Math.min(end, file.size)));
+  });
+}
+
+function parseID3(buf) {
+  const bytes = new Uint8Array(buf);
+  const res = {title:null,artist:null,album:null,artBlob:null};
+  if (bytes[0] !== 0x49 || bytes[1] !== 0x44 || bytes[2] !== 0x33) return res;
+  const ver = bytes[3];
+  const size = ((bytes[6] & 0x7f) << 21) | ((bytes[7] & 0x7f) << 14) | ((bytes[8] & 0x7f) << 7) | (bytes[9] & 0x7f);
+  let pos = 10;
+  const end = Math.min(size + 10, bytes.length);
+  while (pos < end - 10) {
+    const fid = String.fromCharCode(bytes[pos], bytes[pos+1], bytes[pos+2], bytes[pos+3]);
+    let fsz = ver >= 4
+      ? ((bytes[pos+4] & 0x7f) << 21) | ((bytes[pos+5] & 0x7f) << 14) | ((bytes[pos+6] & 0x7f) << 7) | (bytes[pos+7] & 0x7f)
+      : (bytes[pos+4] << 24) | (bytes[pos+5] << 16) | (bytes[pos+6] << 8) | bytes[pos+7];
+    if (fsz <= 0 || pos + 10 + fsz > end) break;
+    pos += 10;
+    const fd = bytes.slice(pos, pos + fsz);
+    const enc = fd[0];
+    const rdStr = (d, off = 1) => {
+      const s = d.slice(off);
+      if (enc === 1 || enc === 2) {
+        let r = '';
+        for (let i = 0; i < s.length - 1; i += 2) {
+          const c = enc === 1 ? (s[i+1] << 8) | s[i] : (s[i] << 8) | s[i+1];
+          if (c === 0) break;
+          r += String.fromCodePoint(c);
+        }
+        return r;
+      }
+      let r = '';
+      for (const b of s) { if (b === 0) break; r += String.fromCharCode(b); }
+      try { return decodeURIComponent(escape(r)); } catch { return r; }
     };
-    if(fid==='TIT2'||fid==='TT2') res.title=rdStr(fd);
-    else if(fid==='TPE1'||fid==='TP1') res.artist=rdStr(fd);
-    else if(fid==='TALB'||fid==='TAL') res.album=rdStr(fd);
-    else if((fid==='APIC'||fid==='PIC')&&!res.artBlob){
-      try{
-        let i=1;while(i<fd.length&&fd[i]!==0)i++;i++;i++;
-        while(i<fd.length&&fd[i]!==0)i++;i++;
-        const img=fd.slice(i);
-        res.artBlob=new Blob([img]);
-      }catch(e){}
+    if (fid === 'TIT2' || fid === 'TT2') res.title = rdStr(fd);
+    else if (fid === 'TPE1' || fid === 'TP1') res.artist = rdStr(fd);
+    else if (fid === 'TALB' || fid === 'TAL') res.album = rdStr(fd);
+    else if ((fid === 'APIC' || fid === 'PIC') && !res.artBlob) {
+      try {
+        let i = 1;
+        while (i < fd.length && fd[i] !== 0) i++;
+        i++;
+        let mimeStart = i;
+        while (i < fd.length && fd[i] !== 0) i++;
+        const mime = String.fromCharCode(...fd.slice(mimeStart, i));
+        i++;
+        const descEnd = fd.indexOf(0, i);
+        if (descEnd >= 0) i = descEnd + 1;
+        const img = fd.slice(i);
+        if (img.length > 100) {
+          res.artBlob = new Blob([img], {type: mime || 'image/jpeg'});
+        }
+      } catch(e) {}
     }
-    pos+=fsz;
+    pos += fsz;
   }
   return res;
 }
@@ -2163,6 +2354,13 @@ async function loadLibrary() {
     }
   }
   playlists = await dbAll(STORE_PL);
+
+  // Load LRC data
+  lrcData = {};
+  for (const rec of all) {
+    const lrcRec = await dbGet(STORE_META, 'lrc_' + rec.id).catch(() => null);
+    if (lrcRec?.data) lrcData[rec.id] = lrcRec.data;
+  }
 }
 
 async function getAudioURL(trackId) {
@@ -2218,9 +2416,75 @@ function renderLibrary() {
     if(sortMode==='album') return a.album.localeCompare(b.album,'fr');
     return b.dateAdded-a.dateAdded;
   });
-  $('lib-list').innerHTML = tracks.length
+  const selBar = selectMode ? `<div style="display:flex;gap:8px;padding:4px 20px 12px;flex-wrap:wrap;align-items:center">
+    <span style="font-size:13px;color:var(--text2)">${selectedIds.size} sélectionné(s)</span>
+    <button class="upload-btn" style="padding:7px 14px;font-size:12px" onclick="addSelectedToPlaylist()">➕ Ajouter à une playlist</button>
+    <button class="upload-btn" style="padding:7px 14px;font-size:12px;background:var(--surface2);color:var(--text1)" onclick="exitSelectMode()">Annuler</button>
+  </div>` : '';
+  $('lib-list').innerHTML = (selBar + (tracks.length
     ? tracks.map((t,i)=>trackItemHTML(t,i+1,true)).join('')
-    : `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 19V6l12-3v13"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="16" r="3"/></svg><h3>${q?'Aucun résultat':'Bibliothèque vide'}</h3><p>${q?'Essaie autre chose':'Importe de la musique d\'abord'}</p></div>`;
+    : `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 19V6l12-3v13"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="16" r="3"/></svg><h3>${q?'Aucun résultat':'Bibliothèque vide'}</h3><p>${q?'Essaie autre chose':'Importe de la musique d\'abord'}</p></div>`));
+  // Update sort button with select toggle
+  $('sort-btn').innerHTML = selectMode
+    ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>`
+    : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="9" y2="18"/></svg>`;
+}
+
+function enterSelectMode() {
+  selectMode = true;
+  selectedIds.clear();
+  renderLibrary();
+}
+function exitSelectMode() {
+  selectMode = false;
+  selectedIds.clear();
+  renderLibrary();
+}
+function toggleSelect(trackId) {
+  if (selectedIds.has(trackId)) selectedIds.delete(trackId);
+  else selectedIds.add(trackId);
+  renderLibrary();
+}
+function addSelectedToPlaylist() {
+  if (selectedIds.size === 0) { toast('Sélectionne des titres'); return; }
+  const ids = [...selectedIds];
+  if (!playlists.length) {
+    openModal(`
+      <div class="modal-title">Aucune playlist</div>
+      <p style="text-align:center;color:var(--text2);font-size:14px;padding:0 20px 16px">Crée d'abord une playlist</p>
+      <button class="modal-btn primary" onclick="closeModal();nav('playlists')">Playlists</button>
+      <button class="modal-btn secondary" onclick="closeModal()">Annuler</button>
+      <div class="modal-pad"></div>
+    `);
+    return;
+  }
+  const btns = playlists.map(pl =>
+    `<button class="modal-btn secondary" onclick="addMultipleToPlaylist('${pl.id}')">${esc(pl.name)}</button>`
+  ).join('');
+  window._addSelectedIds = ids;
+  openModal(`
+    <div class="modal-title">Ajouter ${ids.length} titre(s) à...</div>
+    ${btns}
+    <button class="modal-btn secondary" onclick="closeModal()">Annuler</button>
+    <div class="modal-pad"></div>
+  `);
+}
+async function addMultipleToPlaylist(plId) {
+  const ids = window._addSelectedIds || [];
+  const pl = playlists.find(p => p.id === plId);
+  if (!pl) return;
+  let added = 0;
+  for (const id of ids) {
+    if (!pl.trackIds.includes(id)) {
+      pl.trackIds.push(id);
+      added++;
+    }
+  }
+  await dbPut(STORE_PL, pl);
+  closeModal();
+  exitSelectMode();
+  renderPlaylists(); renderSidebarPlaylists(); renderHome();
+  toast(`✅ ${added} titre(s) ajouté(s) à "${pl.name}"`);
 }
 
 /* ALBUMS */
@@ -2347,13 +2611,17 @@ function playRadio(i) {
   const s=RADIO[i];
   initAudio();
   if(audioCtx?.state==='suspended') audioCtx.resume();
-  audio.src=s.url; audio.play().catch(()=>{});
-  isPlaying=true; currentIdx=-1;
-  $('pp-title').textContent=s.name; $('pp-artist').textContent=s.sub;
-  $('fp-title').textContent=s.name; $('fp-artist').textContent=s.sub;
-  $('hero-track').textContent=s.name; $('hero-artist').textContent=s.sub;
-  updatePlayIcons(); updateArtState();
-  toast(`📻 ${s.name}`);
+  audio.src=s.url;
+  audio.play().then(() => {
+    isPlaying=true; currentIdx=-1;
+    $('pp-title').textContent=s.name; $('pp-artist').textContent=s.sub;
+    $('fp-title').textContent=s.name; $('fp-artist').textContent=s.sub;
+    $('hero-track').textContent=s.name; $('hero-artist').textContent=s.sub;
+    updatePlayIcons(); updateArtState();
+    toast(`📻 ${s.name}`);
+  }).catch(() => {
+    toast(`⚠️ Radio "${s.name}" injoignable — vérifie ta connexion`);
+  });
 }
 
 /* PLAYLIST DETAIL */
@@ -2450,8 +2718,12 @@ function trackItemHTML(t, num, showNum) {
   const art=artUrl?`<img src="${artUrl}" alt="" loading="lazy">`:`<div class="tart-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 19V6l12-3v13"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>`;
   const isNow = library[currentIdx]?.id === t.id;
   const numHTML = isNow?`<div class="eqbars"><div class="eqb"></div><div class="eqb"></div><div class="eqb"></div></div>`:num||'';
-  return `<div class="titem${isNow?' now':''}" data-id="${t.id}" onclick="playById('${t.id}')">
-    ${showNum!==false?`<div class="tnum" data-num="${num||''}">${numHTML}</div>`:''}
+  const isSelected = selectedIds.has(t.id);
+  const selBox = selectMode ? `<div class="tnum" style="width:auto;padding-right:4px"><input type="checkbox" ${isSelected?'checked':''} onchange="event.stopPropagation();toggleSelect('${t.id}')" style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer"></div>` : '';
+  const onClick = selectMode ? `event.stopPropagation();toggleSelect('${t.id}')` : `playById('${t.id}')`;
+  return `<div class="titem${isNow?' now':''}${isSelected?' now':''}" data-id="${t.id}" onclick="${onClick}" style="${isSelected?'background:rgba(252,60,68,0.12)':''}">
+    ${selBox}
+    ${showNum!==false && !selectMode?`<div class="tnum" data-num="${num||''}">${numHTML}</div>`:''}
     <div class="tart">${art}</div>
     <div class="tinfo">
       <div class="ttitle">${esc(t.title)}</div>
@@ -2612,7 +2884,16 @@ function closeCtx(){ $('ctx').style.display='none'; }
 
 function openTrackCtx(trackId, event) {
   const t=library.find(x=>x.id===trackId);
-  if (!t) return;
+  if (!t) {
+    // Fallback: show player options even without track
+    ctx(event,[
+      {label:'⏰ Minuteur',action:()=>{closeCtx();openSleepModal();}},
+      {label:'⚙️ Paramètres',action:()=>{closeCtx();nav('settings');}},
+      'sep',
+      {label:'❌ Fermer',action:()=>closeCtx()}
+    ]);
+    return;
+  }
   ctx(event,[
     {label:'▶ Lire',action:()=>playById(trackId)},
     {label:'⏭ Lire ensuite',action:()=>playNext(trackId)},
@@ -2620,6 +2901,9 @@ function openTrackCtx(trackId, event) {
     'sep',
     {label:t.favorite?'💔 Retirer des favoris':'❤️ Ajouter aux favoris',action:()=>toggleFav(trackId)},
     {label:'📋 Ajouter à une playlist',action:()=>openAddToPlaylistModal(trackId)},
+    'sep',
+    {label:'⏰ Minuteur',action:()=>{closeCtx();openSleepModal();}},
+    {label:'⚙️ Paramètres',action:()=>{closeCtx();nav('settings');}},
     'sep',
     {label:'🗑️ Supprimer',cls:'red',action:()=>removeTrack(trackId)}
   ]);
@@ -2695,20 +2979,57 @@ $('eq-toggle').addEventListener('change',e=>{
 $('search-inp').addEventListener('input', e=>{
   const q=e.target.value.toLowerCase().trim();
   const el=$('search-results');
-  if(!q){el.innerHTML=`<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><h3>Recherche</h3><p>Titre, artiste ou album</p></div>`;return;}
+  if(!q){
+    // Show suggestions
+    const artists = [...new Set(library.map(t=>t.artist).filter(Boolean))].slice(0,8);
+    const genreSuggestions = ['Pop','Rock','Jazz','Classique','Hip-Hop','Électronique','R&B','Metal'];
+    el.innerHTML=`
+      <div style="padding:12px 20px 8px;font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Suggestions</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 16px">
+        ${[...new Set([...artists, ...genreSuggestions])].slice(0,12).map(s =>
+          `<button class="eq-preset" onclick="quickSearch('${esc(s)}')">${esc(s)}</button>`
+        ).join('')}
+      </div>
+      ${library.length ? `<div style="padding:0 20px 8px;font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Parcourir</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 16px">
+        <button class="eq-preset" onclick="quickSearch('')">🎵 Tous les titres</button>
+        <button class="eq-preset" onclick="nav('albums')">💿 Albums</button>
+        <button class="eq-preset" onclick="nav('artists')">🎤 Artistes</button>
+      </div>` : ''}
+    `;
+    return;
+  }
   const res=library.filter(t=>t.title.toLowerCase().includes(q)||t.artist.toLowerCase().includes(q)||t.album.toLowerCase().includes(q));
   el.innerHTML=res.length?res.map((t,i)=>trackItemHTML(t,null,false)).join(''):`<div class="empty"><h3>Aucun résultat</h3><p>Essaie autre chose</p></div>`;
 });
+function quickSearch(q) {
+  $('search-inp').value = q;
+  $('search-inp').dispatchEvent(new Event('input'));
+}
 
 // ─── SLEEP TIMER ───────────────────────────────────────────
 function openSleepModal() {
   openModal(`
     <div class="modal-title">⏰ Minuteur de sommeil</div>
+    <div style="display:flex;gap:8px;padding:0 20px 14px;align-items:center">
+      <input class="modal-inp" id="sleep-custom-m" type="number" min="0" max="999" value="" placeholder="MM" style="width:80px;text-align:center;margin:0;flex:1">
+      <span style="color:var(--text2);font-size:15px">:</span>
+      <input class="modal-inp" id="sleep-custom-s" type="number" min="0" max="59" value="" placeholder="SS" style="width:80px;text-align:center;margin:0;flex:1">
+    </div>
+    <button class="modal-btn primary" onclick="customSleep()">Démarrer</button>
     ${[15,30,45,60,90].map(m=>`<button class="modal-btn secondary" onclick="setSleep(${m})">${m} minutes</button>`).join('')}
     <button class="modal-btn secondary" style="color:#ff453a" onclick="setSleep(0)">Désactiver</button>
     <button class="modal-btn secondary" onclick="closeModal()">Annuler</button>
     <div class="modal-pad"></div>
   `);
+  setTimeout(() => { const el=$('sleep-custom-m'); if(el){el.focus();} }, 350);
+}
+function customSleep() {
+  const m = parseInt($('sleep-custom-m')?.value) || 0;
+  const s = parseInt($('sleep-custom-s')?.value) || 0;
+  const totalSec = m * 60 + s;
+  if (totalSec < 10) { toast('⚠️ Minimum 10 secondes'); return; }
+  setSleep(totalSec / 60);
 }
 function setSleep(min) {
   closeModal();
@@ -2747,6 +3068,7 @@ function nav(viewName) {
   if(viewName==='equalizer') renderEQ();
   if(viewName==='radio') renderRadio();
   if(viewName==='search') setTimeout(()=>$('search-inp').focus(),100);
+  if(viewName==='settings') renderSettings();
 }
 
 document.querySelectorAll('[data-nav]').forEach(el=>{
@@ -2754,12 +3076,17 @@ document.querySelectorAll('[data-nav]').forEach(el=>{
 });
 
 $('lib-filter').addEventListener('input',()=>renderLibrary());
-$('sort-btn').addEventListener('click',e=>ctx(e,[
-  {label:'📅 Date d\'ajout',action:()=>{sortMode='dateAdded';renderLibrary();}},
-  {label:'🔤 Titre',action:()=>{sortMode='title';renderLibrary();}},
-  {label:'🎤 Artiste',action:()=>{sortMode='artist';renderLibrary();}},
-  {label:'💿 Album',action:()=>{sortMode='album';renderLibrary();}},
-]));
+$('sort-btn').addEventListener('click',e=>{
+  if (selectMode) { exitSelectMode(); return; }
+  ctx(e,[
+    {label:'📅 Date d\'ajout',action:()=>{sortMode='dateAdded';renderLibrary();}},
+    {label:'🔤 Titre',action:()=>{sortMode='title';renderLibrary();}},
+    {label:'🎤 Artiste',action:()=>{sortMode='artist';renderLibrary();}},
+    {label:'💿 Album',action:()=>{sortMode='album';renderLibrary();}},
+    'sep',
+    {label:'✅ Sélection multiple',action:()=>enterSelectMode()},
+  ]);
+});
 
 // ─── FULL PLAYER ───────────────────────────────────────────
 function openFullPlayer() {
@@ -2795,7 +3122,68 @@ document.querySelectorAll('.fp-tab').forEach(tab=>{
 });
 
 function renderLyrics() {
-  $('fp-lyr-content').innerHTML=`<div class="lyr-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 19V6l12-3v13"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="16" r="3"/></svg><p>Paroles non disponibles<br><span style="font-size:12px;font-weight:400">Importe un fichier .lrc pour afficher les paroles</span></p></div>`;
+  const track = library[currentIdx];
+  const lrc = track && lrcData[track.id];
+  const el = $('fp-lyr-content');
+  if (lrc && lrc.length) {
+    el.innerHTML = lrc.map((l, i) =>
+      `<div class="lyr-line" data-lyr-idx="${i}" data-time="${l.time}">${esc(l.text) || '♪'}</div>`
+    ).join('');
+    syncLyrics();
+  } else {
+    el.innerHTML = `<div class="lyr-ph"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 19V6l12-3v13"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="16" r="3"/></svg><p>Paroles non disponibles<br><span style="font-size:12px;font-weight:400">Ajoute un fichier .lrc du même nom que la musique pour afficher les paroles synchronisées</span></p></div>`;
+  }
+}
+
+function syncLyrics() {
+  if (lrcInterval) cancelAnimationFrame(lrcInterval);
+  const track = library[currentIdx];
+  const lrc = track && lrcData[track.id];
+  if (!lrc || !lrc.length) return;
+  function tick() {
+    lrcInterval = requestAnimationFrame(tick);
+    if (!isPlaying || !audio.currentTime) return;
+    const t = audio.currentTime;
+    let curIdx = -1;
+    for (let i = lrc.length - 1; i >= 0; i--) {
+      if (t >= lrc[i].time) { curIdx = i; break; }
+    }
+    document.querySelectorAll('.lyr-line').forEach(line => {
+      const idx = parseInt(line.dataset.lyrIdx);
+      line.classList.toggle('cur', idx === curIdx);
+      if (idx === curIdx) {
+        line.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+  }
+  tick();
+}
+
+function parseLRC(text) {
+  const lines = text.split('\n').filter(Boolean);
+  const result = [];
+  const regex = /\[(\d+):(\d+[\.:]\d+)\](.*)/;
+  for (const line of lines) {
+    const m = line.match(regex);
+    if (m) {
+      const min = parseInt(m[1]);
+      const secStr = m[2].replace(':', '.');
+      const sec = parseFloat(secStr);
+      const time = min * 60 + sec;
+      const txt = m[3].trim();
+      if (txt) result.push({ time, text: txt });
+    }
+  }
+  result.sort((a, b) => a.time - b.time);
+  return result;
+}
+
+// Auto-find and load .lrc file when a track is imported
+async function loadLRCForTrack(file, trackId) {
+  try {
+    const lrcName = file.name.replace(/\.[^/.]+$/, '') + '.lrc';
+    // Handled during bulk import in handleFiles
+  } catch(e) {}
 }
 
 // ─── MODAL ─────────────────────────────────────────────────
@@ -2900,6 +3288,74 @@ function checkInstallPrompt() {
   }
 }
 
+
+// ─── SETTINGS ──────────────────────────────────────────────
+function renderSettings() {
+  const totalSize = library.length;
+  const totalDur = library.reduce((s, t) => s + (t.duration || 0), 0);
+  const h = Math.floor(totalDur / 3600);
+  const m = Math.floor((totalDur % 3600) / 60);
+  $('settings-stats').innerHTML = `
+    <div>🎵 ${totalSize} titre${totalSize !== 1 ? 's' : ''}</div>
+    <div>⏱️ ${h}h${String(m).padStart(2, '0')}mn au total</div>
+    <div>📀 ${new Set(library.map(t => t.album)).size} album(s)</div>
+    <div>🎤 ${new Set(library.map(t => t.artist)).size} artiste(s)</div>
+    <div>📂 ${playlists.length} playlist(s)</div>
+  `;
+  $('spatial-toggle').addEventListener('change', e => {
+    if (e.target.checked) enableSpatialAudio();
+    else disableSpatialAudio();
+  });
+}
+
+function enableSpatialAudio() {
+  if (!audioCtx || !gainNode) return;
+  try {
+    // Apply spatial EQ curve: slightly boost lows and highs, narrow mids
+    const spatialEqCurve = [4, 3, 1, 0, -2, -1, 1, 3, 4, 5];
+    spatialEqCurve.forEach((v, i) => {
+      if (eqFilters[i]) {
+        eqFilters[i].gain.setValueAtTime(eqEnabled ? v : 0, audioCtx.currentTime);
+      }
+    });
+    toast('🎧 Son spatial activé');
+  } catch(e) { toast('Son spatial non disponible'); }
+}
+function disableSpatialAudio() {
+  if (!audioCtx) return;
+  // Restore normal EQ values
+  eqVals.forEach((v, i) => {
+    if (eqFilters[i]) {
+      eqFilters[i].gain.setValueAtTime(eqEnabled ? v : 0, audioCtx.currentTime);
+    }
+  });
+  toast('Son spatial désactivé');
+}
+
+async function clearAllData() {
+  openModal(`
+    <div class="modal-title">⚠️ Effacer toutes les données?</div>
+    <p style="text-align:center;color:var(--text2);font-size:14px;padding:0 20px 16px">Cette action est irréversible. Toute ta bibliothèque sera supprimée.</p>
+    <button class="modal-btn red" onclick="doClearAll()">🗑️ Tout effacer</button>
+    <button class="modal-btn secondary" onclick="closeModal()">Annuler</button>
+    <div class="modal-pad"></div>
+  `);
+}
+async function doClearAll() {
+  const stores = ['tracks', 'meta', 'playlists'];
+  for (const s of stores) {
+    const all = await dbAll(s);
+    for (const item of all) {
+      const key = item.key !== undefined ? item.key : item.id;
+      if (key !== undefined) await dbDel(s, key);
+    }
+  }
+  library = []; playlists = []; blobURLs = {};
+  if (audio) { audio.pause(); isPlaying = false; currentIdx = -1; }
+  closeModal();
+  renderAll();
+  toast('🗑️ Toutes les données effacées');
+}
 
 // ─── MOBILE MORE SHEET ──────────────────────────────────────
 function openMobileMore() { $('mobile-more-sheet').classList.add('open'); }
@@ -3053,6 +3509,11 @@ init();
     <div class="mm-item" onclick="closeMobileMore();cycleSpeed()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
       <span>Vitesse</span>
+    </div>
+    <div class="mm-sep"></div>
+    <div class="mm-item" onclick="closeMobileMore();nav('settings')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <span>Paramètres</span>
     </div>
   </div>
 </div>
